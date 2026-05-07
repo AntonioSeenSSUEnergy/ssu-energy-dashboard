@@ -1,0 +1,600 @@
+date,building,kWh,gas_therm,water_gallon
+2025-09-27,Campus Misc,0.0,0.0,0.0
+2025-09-28,Campus Misc,0.0,0.0,0.0
+2025-09-29,Campus Misc,0.0,0.0,0.0
+2025-10-28,Campus Misc,0.03,0.0,0.0
+2025-10-29,Campus Misc,3.75,0.0,0.0
+2025-10-30,Campus Misc,3.74,0.0,0.0
+2025-10-31,Campus Misc,3.67,0.0,0.0
+2025-11-01,Campus Misc,3.73,0.0,0.0
+2025-11-01,Green Music Center,38626.9537,0.0,0.0
+2025-11-01,Ives Hall,499.4437,0.0,0.0
+2025-11-01,Nichols Hall,22378.9607,0.0,0.0
+2025-11-01,Physical Education,1207.81,0.0,0.0
+2025-11-01,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-01,Student Center,2827.8295,0.0,0.0
+2025-11-01,Student Health Center,0.0,0.0,0.0
+2025-11-01,Wine Spectator Learning Ctr,2353.52,0.0,0.0
+2025-11-02,Campus Misc,3.98,0.0,0.0
+2025-11-02,Green Music Center,18162.8765,0.0,0.0
+2025-11-02,Ives Hall,201.4278,0.0,0.0
+2025-11-02,Nichols Hall,22952.4253,0.0,0.0
+2025-11-02,Physical Education,1277.57,0.0,0.0
+2025-11-02,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-02,Student Center,3844.347,0.0,0.0
+2025-11-02,Student Health Center,0.0,0.0,0.0
+2025-11-02,Wine Spectator Learning Ctr,2398.87,0.0,0.0
+2025-11-03,Campus Misc,3.76,0.0,0.0
+2025-11-04,Campus Misc,3.71,0.0,0.0
+2025-11-05,Campus Misc,3.8,0.0,0.0
+2025-11-06,Campus Misc,3.83,0.0,0.0
+2025-11-07,Campus Misc,3.89,0.0,0.0
+2025-11-07,Green Music Center,36177.7393,0.0,0.0
+2025-11-07,Ives Hall,275.5277,0.0,0.0
+2025-11-07,Nichols Hall,22339.2763,0.0,0.0
+2025-11-07,Physical Education,1152.35,0.0,0.0
+2025-11-07,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-07,Student Center,2558.7649,0.0,0.0
+2025-11-07,Student Health Center,0.0,0.0,0.0
+2025-11-07,Wine Spectator Learning Ctr,3788.94,0.0,0.0
+2025-11-08,Campus Misc,3.72,0.0,0.0
+2025-11-08,Green Music Center,84214.746,0.0,0.0
+2025-11-08,Ives Hall,427.8859,0.0,0.0
+2025-11-08,Nichols Hall,22291.2494,0.0,0.0
+2025-11-08,Physical Education,1228.53,0.0,0.0
+2025-11-08,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-08,Student Center,2505.2977,0.0,0.0
+2025-11-08,Student Health Center,0.0,0.0,0.0
+2025-11-08,Wine Spectator Learning Ctr,3626.1,0.0,0.0
+2025-11-09,Campus Misc,3.78,0.0,0.0
+2025-11-09,Green Music Center,95199.1135,0.0,0.0
+2025-11-09,Ives Hall,235.6312,0.0,0.0
+2025-11-09,Nichols Hall,21883.6997,0.0,0.0
+2025-11-09,Physical Education,1183.98,0.0,0.0
+2025-11-09,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-09,Student Center,3932.3742,0.0,0.0
+2025-11-09,Student Health Center,0.0113,0.0,0.0
+2025-11-09,Wine Spectator Learning Ctr,3353.9,0.0,0.0
+2025-11-10,Campus Misc,3.79,0.0,0.0
+2025-11-10,Green Music Center,3510.8587,0.0,0.0
+2025-11-10,Ives Hall,237.1506,0.0,0.0
+2025-11-10,Nichols Hall,7169.0636,0.0,0.0
+2025-11-10,Physical Education,376.43,0.0,0.0
+2025-11-10,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-10,Student Center,4734.452,0.0,0.0
+2025-11-10,Student Health Center,0.0,0.0,0.0
+2025-11-10,Wine Spectator Learning Ctr,945.95,0.0,0.0
+2025-11-11,Campus Misc,3.71,0.0,0.0
+2025-11-11,Green Music Center,6307.0723,0.0,0.0
+2025-11-11,Ives Hall,62.0491,0.0,0.0
+2025-11-11,Nichols Hall,12665.9746,0.0,0.0
+2025-11-11,Physical Education,693.33,0.0,0.0
+2025-11-11,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-11,Student Center,1208.6866,0.0,0.0
+2025-11-11,Student Health Center,0.0,0.0,0.0
+2025-11-11,Wine Spectator Learning Ctr,1126.01,0.0,0.0
+2025-11-12,Campus Misc,3.89,0.0,0.0
+2025-11-13,Campus Misc,3.95,0.0,0.0
+2025-11-14,Campus Misc,3.75,0.0,0.0
+2025-11-14,Green Music Center,21979.634,0.0,0.0
+2025-11-14,Ives Hall,625.781,0.0,0.0
+2025-11-14,Nichols Hall,22146.536,0.0,0.0
+2025-11-14,Physical Education,1290.7,0.0,0.0
+2025-11-14,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-14,Student Center,2042.7284,0.0,0.0
+2025-11-14,Student Health Center,0.0,0.0,0.0
+2025-11-14,Wine Spectator Learning Ctr,3289.73,0.0,0.0
+2025-11-15,Campus Misc,4.0,0.0,0.0
+2025-11-16,Campus Misc,3.81,0.0,0.0
+2025-11-16,Green Music Center,54264.362,0.0,0.0
+2025-11-16,Ives Hall,969.2462,0.0,0.0
+2025-11-16,Nichols Hall,21262.991,0.0,0.0
+2025-11-16,Physical Education,1279.95,0.0,0.0
+2025-11-16,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-16,Student Center,764.2816,0.0,0.0
+2025-11-16,Student Health Center,0.0,0.0,0.0
+2025-11-16,Wine Spectator Learning Ctr,2431.62,0.0,0.0
+2025-11-17,Campus Misc,3.95,0.0,0.0
+2025-11-17,Green Music Center,46576.995,0.0,0.0
+2025-11-17,Ives Hall,1381.0576,0.0,0.0
+2025-11-17,Nichols Hall,21812.2844,0.0,0.0
+2025-11-17,Physical Education,1327.46,0.0,0.0
+2025-11-17,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-17,Student Center,1026.1031,0.0,0.0
+2025-11-17,Student Health Center,0.0,0.0,0.0
+2025-11-17,Wine Spectator Learning Ctr,3392.65,0.0,0.0
+2025-11-18,Campus Misc,3.99,0.0,0.0
+2025-11-18,Green Music Center,15114.2589,0.0,0.0
+2025-11-18,Ives Hall,1085.2425,0.0,0.0
+2025-11-18,Nichols Hall,21377.0512,0.0,0.0
+2025-11-18,Physical Education,1321.55,0.0,0.0
+2025-11-18,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-18,Student Center,1705.6908,0.0,0.0
+2025-11-18,Student Health Center,0.0,0.0,0.0
+2025-11-18,Wine Spectator Learning Ctr,3541.59,0.0,0.0
+2025-11-19,Campus Misc,3.78,0.0,0.0
+2025-11-20,Campus Misc,3.9,0.0,0.0
+2025-11-20,Green Music Center,39363.745,0.0,0.0
+2025-11-20,Ives Hall,1149.4342,0.0,0.0
+2025-11-20,Nichols Hall,21931.4034,0.0,0.0
+2025-11-20,Physical Education,1297.17,0.0,0.0
+2025-11-20,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-20,Student Center,1377.3125,0.0,0.0
+2025-11-20,Student Health Center,0.0,0.0,0.0
+2025-11-20,Wine Spectator Learning Ctr,3623.57,0.0,0.0
+2025-11-21,Campus Misc,4.0,0.0,0.0
+2025-11-21,Green Music Center,66762.8603,0.0,0.0
+2025-11-21,Ives Hall,1080.4691,0.0,0.0
+2025-11-21,Nichols Hall,21653.8479,0.0,0.0
+2025-11-21,Physical Education,1270.54,0.0,0.0
+2025-11-21,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-21,Student Center,2581.4069,0.0,0.0
+2025-11-21,Student Health Center,0.0,0.0,0.0
+2025-11-21,Wine Spectator Learning Ctr,3219.66,0.0,0.0
+2025-11-22,Campus Misc,3.95,0.0,0.0
+2025-11-23,Campus Misc,3.96,0.0,0.0
+2025-11-24,Campus Misc,3.96,0.0,0.0
+2025-11-24,Green Music Center,37221.5529,0.0,0.0
+2025-11-24,Ives Hall,1126.6264,0.0,0.0
+2025-11-24,Nichols Hall,21489.0984,0.0,0.0
+2025-11-24,Physical Education,1248.94,0.0,0.0
+2025-11-24,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-24,Student Center,1512.9936,0.0,0.0
+2025-11-24,Student Health Center,0.0,0.0,0.0
+2025-11-24,Wine Spectator Learning Ctr,3499.27,0.0,0.0
+2025-11-25,Campus Misc,4.05,0.0,0.0
+2025-11-25,Green Music Center,46007.1132,0.0,0.0
+2025-11-25,Ives Hall,1726.4546,0.0,0.0
+2025-11-25,Nichols Hall,21698.632,0.0,0.0
+2025-11-25,Physical Education,1275.07,0.0,0.0
+2025-11-25,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-25,Student Center,1185.7747,0.0,0.0
+2025-11-25,Student Health Center,0.0,0.0,0.0
+2025-11-25,Wine Spectator Learning Ctr,3603.93,0.0,0.0
+2025-11-26,Campus Misc,4.01,0.0,0.0
+2025-11-26,Green Music Center,5202.3433,0.0,0.0
+2025-11-26,Ives Hall,1822.066,0.0,0.0
+2025-11-26,Nichols Hall,21552.6715,0.0,0.0
+2025-11-26,Physical Education,1001.78,0.0,0.0
+2025-11-26,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-26,Student Center,755.5947,0.0,0.0
+2025-11-26,Student Health Center,0.0,0.0,0.0
+2025-11-26,Wine Spectator Learning Ctr,3135.94,0.0,0.0
+2025-11-27,Campus Misc,3.98,0.0,0.0
+2025-11-27,Green Music Center,9989.0443,0.0,0.0
+2025-11-27,Ives Hall,2119.2201,0.0,0.0
+2025-11-27,Nichols Hall,21791.1577,0.0,0.0
+2025-11-27,Physical Education,1163.48,0.0,0.0
+2025-11-27,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-27,Student Center,472.7201,0.0,0.0
+2025-11-27,Student Health Center,0.0,0.0,0.0
+2025-11-27,Wine Spectator Learning Ctr,3327.62,0.0,0.0
+2025-11-28,Campus Misc,0.2,0.0,0.0
+2025-11-28,Green Music Center,9152.0422,0.0,0.0
+2025-11-28,Ives Hall,2395.9079,0.0,0.0
+2025-11-28,Nichols Hall,21853.0897,0.0,0.0
+2025-11-28,Physical Education,1154.89,0.0,0.0
+2025-11-28,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-28,Student Center,400.6257,0.0,0.0
+2025-11-28,Student Health Center,0.0,0.0,0.0
+2025-11-28,Wine Spectator Learning Ctr,3188.61,0.0,0.0
+2025-11-30,Green Music Center,657.14,0.0,0.0
+2025-11-30,Ives Hall,5.3627,0.0,0.0
+2025-11-30,Nichols Hall,22357.2256,0.0,0.0
+2025-11-30,Physical Education,1193.62,0.0,0.0
+2025-11-30,Rachel Carson Hall,0.0,0.0,0.0
+2025-11-30,Student Center,769.3101,0.0,0.0
+2025-11-30,Student Health Center,0.0,0.0,0.0
+2025-11-30,Wine Spectator Learning Ctr,2816.81,0.0,0.0
+2026-01-28,Campus Misc,0.03,0.0,0.0
+2026-01-29,Campus Misc,4.22,0.0,0.0
+2026-01-30,Campus Misc,4.24,0.0,0.0
+2026-01-31,Campus Misc,4.33,0.0,0.0
+2026-02-01,Campus Misc,4.11,0.0,0.0
+2026-02-01,Green Music Center,33926.8236,0.0,0.0
+2026-02-01,Ives Hall,983.1571,0.0,0.0
+2026-02-01,Nichols Hall,19346.7718,0.0,0.0
+2026-02-01,Physical Education,1261.49,0.0,0.0
+2026-02-01,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-01,Student Center,1872.0422,0.0,0.0
+2026-02-01,Student Health Center,0.0,0.0,0.0
+2026-02-01,Wine Spectator Learning Ctr,2074.69,0.0,0.0
+2026-02-02,Campus Misc,4.24,0.0,0.0
+2026-02-02,Green Music Center,16825.1595,0.0,0.0
+2026-02-02,Ives Hall,1497.9137,0.0,0.0
+2026-02-02,Nichols Hall,20057.6894,0.0,0.0
+2026-02-02,Physical Education,1320.1,0.0,0.0
+2026-02-02,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-02,Student Center,2550.2064,0.0,0.0
+2026-02-02,Student Health Center,0.0,0.0,0.0
+2026-02-02,Wine Spectator Learning Ctr,3759.48,0.0,0.0
+2026-02-03,Campus Misc,4.22,0.0,0.0
+2026-02-03,Green Music Center,16887.8984,0.0,0.0
+2026-02-03,Ives Hall,1549.7645,0.0,0.0
+2026-02-03,Nichols Hall,20386.774,0.0,0.0
+2026-02-03,Physical Education,1316.09,0.0,0.0
+2026-02-03,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-03,Student Center,2034.7494,0.0,0.0
+2026-02-03,Student Health Center,0.0,0.0,0.0
+2026-02-03,Wine Spectator Learning Ctr,3303.76,0.0,0.0
+2026-02-04,Campus Misc,4.23,0.0,0.0
+2026-02-04,Green Music Center,17538.357,0.0,0.0
+2026-02-04,Ives Hall,1352.7767,0.0,0.0
+2026-02-04,Nichols Hall,19890.6072,0.0,0.0
+2026-02-04,Physical Education,1367.77,0.0,0.0
+2026-02-04,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-04,Student Center,2212.9384,0.0,0.0
+2026-02-04,Student Health Center,0.0,0.0,0.0
+2026-02-04,Wine Spectator Learning Ctr,3382.14,0.0,0.0
+2026-02-05,Campus Misc,0.03,0.0,0.0
+2026-02-05,Green Music Center,91399.2744,0.0,0.0
+2026-02-05,Ives Hall,1376.9727,0.0,0.0
+2026-02-05,Nichols Hall,19287.8038,0.0,0.0
+2026-02-05,Physical Education,1377.83,0.0,0.0
+2026-02-05,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-05,Student Center,2753.6727,0.0,0.0
+2026-02-05,Student Health Center,0.0,0.0,0.0
+2026-02-05,Wine Spectator Learning Ctr,3235.91,0.0,0.0
+2026-02-06,Green Music Center,97374.6585,0.0,0.0
+2026-02-06,Ives Hall,949.9119,0.0,0.0
+2026-02-06,Nichols Hall,19826.8673,0.0,0.0
+2026-02-06,Physical Education,1285.25,0.0,0.0
+2026-02-06,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-06,Student Center,2669.4593,0.0,0.0
+2026-02-06,Student Health Center,0.0,0.0,0.0
+2026-02-06,Wine Spectator Learning Ctr,2495.63,0.0,0.0
+2026-02-07,Green Music Center,76986.6964,0.0,0.0
+2026-02-07,Ives Hall,1243.0847,0.0,0.0
+2026-02-07,Nichols Hall,20803.2726,0.0,0.0
+2026-02-07,Physical Education,1281.37,0.0,0.0
+2026-02-07,Rachel Carson Hall,0.0,0.0,0.0
+2026-02-07,Student Center,1066.4098,0.0,0.0
+2026-02-07,Student Health Center,0.0,0.0,0.0
+2026-02-07,Wine Spectator Learning Ctr,1985.77,0.0,0.0
+2026-03-04,Campus Misc,0.03,0.0,0.0
+2026-03-05,Campus Misc,4.05,0.0,0.0
+2026-03-06,Campus Misc,4.2,0.0,0.0
+2026-03-07,Campus Misc,4.02,0.0,0.0
+2026-03-08,Campus Misc,3.76,0.0,0.0
+2026-03-08,Green Music Center,80762.8655,0.0,0.0
+2026-03-08,Ives Hall,150.0154,0.0,0.0
+2026-03-08,Nichols Hall,12575.5566,0.0,0.0
+2026-03-08,Physical Education,1236.84,0.0,0.0
+2026-03-08,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-08,Student Center,4255.7996,0.0,0.0
+2026-03-08,Student Health Center,0.0,0.0,0.0
+2026-03-08,Wine Spectator Learning Ctr,1966.1,0.0,0.0
+2026-03-09,Campus Misc,4.19,0.0,0.0
+2026-03-09,Green Music Center,65753.0329,0.0,0.0
+2026-03-09,Ives Hall,697.1585,0.0,0.0
+2026-03-09,Nichols Hall,18691.8279,0.0,0.0
+2026-03-09,Physical Education,1380.51,0.0,0.0
+2026-03-09,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-09,Student Center,3060.8815,0.0,0.0
+2026-03-09,Student Health Center,0.0,0.0,0.0
+2026-03-09,Wine Spectator Learning Ctr,3405.23,0.0,0.0
+2026-03-10,Campus Misc,4.03,0.0,0.0
+2026-03-10,Green Music Center,35340.0694,0.0,0.0
+2026-03-10,Ives Hall,752.6738,0.0,0.0
+2026-03-10,Nichols Hall,19123.0177,0.0,0.0
+2026-03-10,Physical Education,1370.15,0.0,0.0
+2026-03-10,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-10,Student Center,2505.3296,0.0,0.0
+2026-03-10,Student Health Center,0.0,0.0,0.0
+2026-03-10,Wine Spectator Learning Ctr,3342.31,0.0,0.0
+2026-03-11,Campus Misc,4.23,0.0,0.0
+2026-03-11,Green Music Center,4552768.337,0.0,0.0
+2026-03-11,Ives Hall,902.9892,0.0,0.0
+2026-03-11,Nichols Hall,18599.3322,0.0,0.0
+2026-03-11,Physical Education,1388.39,0.0,0.0
+2026-03-11,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-11,Student Center,3622.7951,0.0,0.0
+2026-03-11,Student Health Center,0.0,0.0,0.0
+2026-03-11,Wine Spectator Learning Ctr,3526.24,0.0,0.0
+2026-03-12,Campus Misc,4.03,0.0,0.0
+2026-03-12,Green Music Center,120049.0417,0.0,0.0
+2026-03-12,Ives Hall,1270.7132,0.0,0.0
+2026-03-12,Nichols Hall,18642.8542,0.0,0.0
+2026-03-12,Physical Education,1329.71,0.0,0.0
+2026-03-12,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-12,Student Center,4061.426,0.0,0.0
+2026-03-12,Student Health Center,0.0,0.0,0.0
+2026-03-12,Wine Spectator Learning Ctr,3354.03,0.0,0.0
+2026-03-13,Campus Misc,4.05,0.0,0.0
+2026-03-13,Green Music Center,118294.3109,0.0,0.0
+2026-03-13,Ives Hall,792.1137,0.0,0.0
+2026-03-13,Nichols Hall,18964.5499,0.0,0.0
+2026-03-13,Physical Education,1364.7,0.0,0.0
+2026-03-13,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-13,Student Center,3827.4117,0.0,0.0
+2026-03-13,Student Health Center,0.0,0.0,0.0
+2026-03-13,Wine Spectator Learning Ctr,3267.73,0.0,0.0
+2026-03-14,Campus Misc,0.03,0.0,0.0
+2026-03-14,Green Music Center,21149.4485,0.0,0.0
+2026-03-14,Ives Hall,823.6502,0.0,0.0
+2026-03-14,Nichols Hall,22454.5563,0.0,0.0
+2026-03-14,Physical Education,1395.03,0.0,0.0
+2026-03-14,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-14,Student Center,4084.8853,0.0,0.0
+2026-03-14,Student Health Center,0.0,0.0,0.0
+2026-03-14,Wine Spectator Learning Ctr,2247.84,0.0,0.0
+2026-03-15,Green Music Center,68706.9894,0.0,0.0
+2026-03-15,Ives Hall,500.5099,0.0,0.0
+2026-03-15,Nichols Hall,15740.3073,0.0,0.0
+2026-03-15,Physical Education,1354.13,0.0,0.0
+2026-03-15,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-15,Student Center,4542.939,0.0,0.0
+2026-03-15,Student Health Center,0.0,0.0,0.0
+2026-03-15,Wine Spectator Learning Ctr,2298.94,0.0,0.0
+2026-03-16,Green Music Center,26861.8446,0.0,0.0
+2026-03-16,Ives Hall,476.6604,0.0,0.0
+2026-03-16,Nichols Hall,15173.5088,0.0,0.0
+2026-03-16,Physical Education,1346.25,0.0,0.0
+2026-03-16,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-16,Student Center,6672.1807,0.0,0.0
+2026-03-16,Student Health Center,0.0,0.0,0.0
+2026-03-16,Wine Spectator Learning Ctr,3522.13,0.0,0.0
+2026-03-17,Green Music Center,84148.3251,0.0,0.0
+2026-03-17,Ives Hall,207.9064,0.0,0.0
+2026-03-17,Nichols Hall,23491.794,0.0,0.0
+2026-03-17,Physical Education,1349.69,0.0,0.0
+2026-03-17,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-17,Student Center,7557.4118,0.0,0.0
+2026-03-17,Student Health Center,0.0,0.0,0.0
+2026-03-17,Wine Spectator Learning Ctr,3534.77,0.0,0.0
+2026-03-18,Green Music Center,61629.4195,0.0,0.0
+2026-03-18,Ives Hall,314.3911,0.0,0.0
+2026-03-18,Nichols Hall,8852.4733,0.0,0.0
+2026-03-18,Physical Education,1359.87,0.0,0.0
+2026-03-18,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-18,Student Center,7335.6695,0.0,0.0
+2026-03-18,Student Health Center,0.0,0.0,0.0
+2026-03-18,Wine Spectator Learning Ctr,3644.61,0.0,0.0
+2026-03-19,Green Music Center,70154.853,0.0,0.0
+2026-03-19,Ives Hall,202.8133,0.0,0.0
+2026-03-19,Nichols Hall,707.6154,0.0,0.0
+2026-03-19,Physical Education,1404.19,0.0,0.0
+2026-03-19,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-19,Student Center,6355.0185,0.0,0.0
+2026-03-19,Student Health Center,0.0,0.0,0.0
+2026-03-19,Wine Spectator Learning Ctr,3730.27,0.0,0.0
+2026-03-20,Green Music Center,29492.1162,0.0,0.0
+2026-03-20,Ives Hall,183.8082,0.0,0.0
+2026-03-20,Nichols Hall,621.9987,0.0,0.0
+2026-03-20,Physical Education,1363.41,0.0,0.0
+2026-03-20,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-20,Student Center,6457.6794,0.0,0.0
+2026-03-20,Student Health Center,0.0,0.0,0.0
+2026-03-20,Wine Spectator Learning Ctr,3308.52,0.0,0.0
+2026-03-21,Campus Misc,0.03,0.0,0.0
+2026-03-21,Green Music Center,107137.3477,0.0,0.0
+2026-03-21,Ives Hall,414.9262,0.0,0.0
+2026-03-21,Nichols Hall,0.0,0.0,0.0
+2026-03-21,Physical Education,1294.49,0.0,0.0
+2026-03-21,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-21,Student Center,5258.5156,0.0,0.0
+2026-03-21,Student Health Center,0.0,0.0,0.0
+2026-03-21,Wine Spectator Learning Ctr,2020.19,0.0,0.0
+2026-03-22,Campus Misc,4.03,0.0,0.0
+2026-03-22,Green Music Center,69557.142,0.0,0.0
+2026-03-22,Ives Hall,675.2348,0.0,0.0
+2026-03-22,Nichols Hall,241.2714,0.0,0.0
+2026-03-22,Physical Education,1357.87,0.0,0.0
+2026-03-22,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-22,Student Center,2346.9005,0.0,0.0
+2026-03-22,Student Health Center,0.0,0.0,0.0
+2026-03-22,Wine Spectator Learning Ctr,2030.11,0.0,0.0
+2026-03-23,Campus Misc,4.04,0.0,0.0
+2026-03-23,Green Music Center,83508.8068,0.0,0.0
+2026-03-23,Ives Hall,1109.0907,0.0,0.0
+2026-03-23,Nichols Hall,193.8654,0.0,0.0
+2026-03-23,Physical Education,1380.16,0.0,0.0
+2026-03-23,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-23,Student Center,3402.9781,0.0,0.0
+2026-03-23,Student Health Center,0.0,0.0,0.0
+2026-03-23,Wine Spectator Learning Ctr,3244.94,0.0,0.0
+2026-03-24,Campus Misc,3.9,0.0,0.0
+2026-03-24,Green Music Center,87222.736,0.0,0.0
+2026-03-24,Ives Hall,884.8673,0.0,0.0
+2026-03-24,Nichols Hall,271.1339,0.0,0.0
+2026-03-24,Physical Education,1349.75,0.0,0.0
+2026-03-24,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-24,Student Center,3805.6482,0.0,0.0
+2026-03-24,Student Health Center,0.0,0.0,0.0
+2026-03-24,Wine Spectator Learning Ctr,3251.76,0.0,0.0
+2026-03-25,Campus Misc,4.06,0.0,0.0
+2026-03-25,Green Music Center,81139.0449,0.0,0.0
+2026-03-25,Ives Hall,837.1465,0.0,0.0
+2026-03-25,Nichols Hall,194.7416,0.0,0.0
+2026-03-25,Physical Education,1394.47,0.0,0.0
+2026-03-25,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-25,Student Center,3637.9973,0.0,0.0
+2026-03-25,Student Health Center,0.0,0.0,0.0
+2026-03-25,Wine Spectator Learning Ctr,3152.99,0.0,0.0
+2026-03-26,Campus Misc,4.22,0.0,0.0
+2026-03-26,Green Music Center,45612.8141,0.0,0.0
+2026-03-26,Ives Hall,871.1375,0.0,0.0
+2026-03-26,Nichols Hall,288.6501,0.0,0.0
+2026-03-26,Physical Education,1327.25,0.0,0.0
+2026-03-26,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-26,Student Center,2815.9787,0.0,0.0
+2026-03-26,Student Health Center,0.0,0.0,0.0
+2026-03-26,Wine Spectator Learning Ctr,3414.95,0.0,0.0
+2026-03-27,Campus Misc,4.07,0.0,0.0
+2026-03-27,Green Music Center,32574.9216,0.0,0.0
+2026-03-27,Ives Hall,780.2917,0.0,0.0
+2026-03-27,Nichols Hall,235.4542,0.0,0.0
+2026-03-27,Physical Education,1297.79,0.0,0.0
+2026-03-27,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-27,Student Center,3445.1739,0.0,0.0
+2026-03-27,Student Health Center,0.0,0.0,0.0
+2026-03-27,Wine Spectator Learning Ctr,3672.24,0.0,0.0
+2026-03-28,Campus Misc,3.88,0.0,0.0
+2026-03-28,Green Music Center,55496.6475,0.0,0.0
+2026-03-28,Ives Hall,1253.444,0.0,0.0
+2026-03-28,Nichols Hall,0.0,0.0,0.0
+2026-03-28,Physical Education,1355.38,0.0,0.0
+2026-03-28,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-28,Student Center,2716.6179,0.0,0.0
+2026-03-28,Student Health Center,0.0,0.0,0.0
+2026-03-28,Wine Spectator Learning Ctr,3124.68,0.0,0.0
+2026-03-29,Campus Misc,4.07,0.0,0.0
+2026-03-29,Green Music Center,27889.9391,0.0,0.0
+2026-03-29,Ives Hall,432.4627,0.0,0.0
+2026-03-29,Nichols Hall,422.9704,0.0,0.0
+2026-03-29,Physical Education,1372.5,0.0,0.0
+2026-03-29,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-29,Student Center,3898.6455,0.0,0.0
+2026-03-29,Student Health Center,0.0,0.0,0.0
+2026-03-29,Wine Spectator Learning Ctr,2123.45,0.0,0.0
+2026-03-30,Campus Misc,0.06,0.0,0.0
+2026-03-30,Green Music Center,42514.9082,0.0,0.0
+2026-03-30,Ives Hall,357.0598,0.0,0.0
+2026-03-30,Nichols Hall,255.3375,0.0,0.0
+2026-03-30,Physical Education,1358.59,0.0,0.0
+2026-03-30,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-30,Student Center,3504.4626,0.0,0.0
+2026-03-30,Student Health Center,0.0,0.0,0.0
+2026-03-30,Wine Spectator Learning Ctr,3391.31,0.0,0.0
+2026-03-31,Campus Misc,4.06,0.0,0.0
+2026-03-31,Green Music Center,17938.2426,0.0,0.0
+2026-03-31,Ives Hall,459.2429,0.0,0.0
+2026-03-31,Nichols Hall,27.6359,0.0,0.0
+2026-03-31,Physical Education,1312.19,0.0,0.0
+2026-03-31,Rachel Carson Hall,0.0,0.0,0.0
+2026-03-31,Student Center,1086.0994,0.0,0.0
+2026-03-31,Student Health Center,0.0,0.0,0.0
+2026-03-31,Wine Spectator Learning Ctr,2930.98,0.0,0.0
+2026-04-01,Campus Misc,3.98,0.0,0.0
+2026-04-01,Green Music Center,39560.0149,0.0,0.0
+2026-04-01,Ives Hall,1309.3393,0.0,0.0
+2026-04-01,Nichols Hall,0.0,0.0,0.0
+2026-04-01,Physical Education,1369.02,0.0,0.0
+2026-04-01,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-01,Student Center,184.5258,0.0,0.0
+2026-04-01,Student Health Center,0.0,0.0,0.0
+2026-04-01,Wine Spectator Learning Ctr,3241.3,0.0,0.0
+2026-04-02,Campus Misc,4.2,0.0,0.0
+2026-04-02,Green Music Center,31821.1836,0.0,0.0
+2026-04-02,Ives Hall,1007.2281,0.0,0.0
+2026-04-02,Nichols Hall,8.4636,0.0,0.0
+2026-04-02,Physical Education,1332.3,0.0,0.0
+2026-04-02,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-02,Student Center,1312.5449,0.0,0.0
+2026-04-02,Student Health Center,0.0,0.0,0.0
+2026-04-02,Wine Spectator Learning Ctr,3121.62,0.0,0.0
+2026-04-03,Campus Misc,4.05,0.0,0.0
+2026-04-03,Green Music Center,28688.5076,0.0,0.0
+2026-04-03,Ives Hall,1353.2369,0.0,0.0
+2026-04-03,Nichols Hall,98.8504,0.0,0.0
+2026-04-03,Physical Education,1206.26,0.0,0.0
+2026-04-03,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-03,Student Center,3860.2929,0.0,0.0
+2026-04-03,Student Health Center,0.0,0.0,0.0
+2026-04-03,Wine Spectator Learning Ctr,2937.12,0.0,0.0
+2026-04-04,Campus Misc,4.05,0.0,0.0
+2026-04-04,Green Music Center,26448.4309,0.0,0.0
+2026-04-04,Ives Hall,521.4427,0.0,0.0
+2026-04-04,Nichols Hall,0.0,0.0,0.0
+2026-04-04,Physical Education,1259.2,0.0,0.0
+2026-04-04,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-04,Student Center,4546.3037,0.0,0.0
+2026-04-04,Student Health Center,0.0,0.0,0.0
+2026-04-04,Wine Spectator Learning Ctr,1859.77,0.0,0.0
+2026-04-05,Campus Misc,4.05,0.0,0.0
+2026-04-05,Green Music Center,25578.7676,0.0,0.0
+2026-04-05,Ives Hall,470.0165,0.0,0.0
+2026-04-05,Nichols Hall,316.1115,0.0,0.0
+2026-04-05,Physical Education,1221.35,0.0,0.0
+2026-04-05,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-05,Student Center,4686.5197,0.0,0.0
+2026-04-05,Student Health Center,0.0,0.0,0.0
+2026-04-05,Wine Spectator Learning Ctr,2133.21,0.0,0.0
+2026-04-06,Campus Misc,4.05,0.0,0.0
+2026-04-06,Green Music Center,35409.5738,0.0,0.0
+2026-04-06,Ives Hall,476.5266,0.0,0.0
+2026-04-06,Nichols Hall,0.0,0.0,0.0
+2026-04-06,Physical Education,1248.36,0.0,0.0
+2026-04-06,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-06,Student Center,1733.097,0.0,0.0
+2026-04-06,Student Health Center,0.0,0.0,0.0
+2026-04-06,Wine Spectator Learning Ctr,3318.25,0.0,0.0
+2026-04-07,Campus Misc,4.22,0.0,0.0
+2026-04-07,Green Music Center,39199.8236,0.0,0.0
+2026-04-07,Ives Hall,1028.7215,0.0,0.0
+2026-04-07,Nichols Hall,22.729,0.0,0.0
+2026-04-07,Physical Education,1256.09,0.0,0.0
+2026-04-07,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-07,Student Center,2793.2234,0.0,0.0
+2026-04-07,Student Health Center,0.0,0.0,0.0
+2026-04-07,Wine Spectator Learning Ctr,3284.14,0.0,0.0
+2026-04-08,Campus Misc,4.04,0.0,0.0
+2026-04-08,Green Music Center,44082.7704,0.0,0.0
+2026-04-08,Ives Hall,592.0912,0.0,0.0
+2026-04-08,Nichols Hall,129.7586,0.0,0.0
+2026-04-08,Physical Education,1294.44,0.0,0.0
+2026-04-08,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-08,Student Center,3939.8408,0.0,0.0
+2026-04-08,Student Health Center,0.0,0.0,0.0
+2026-04-08,Wine Spectator Learning Ctr,3470.78,0.0,0.0
+2026-04-09,Campus Misc,3.92,0.0,0.0
+2026-04-09,Green Music Center,22621.4132,0.0,0.0
+2026-04-09,Ives Hall,396.5535,0.0,0.0
+2026-04-09,Nichols Hall,84.6491,0.0,0.0
+2026-04-09,Physical Education,1287.32,0.0,0.0
+2026-04-09,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-09,Student Center,3254.531,0.0,0.0
+2026-04-09,Student Health Center,0.0,0.0,0.0
+2026-04-09,Wine Spectator Learning Ctr,3494.05,0.0,0.0
+2026-04-10,Campus Misc,3.86,0.0,0.0
+2026-04-10,Green Music Center,50926.2746,0.0,0.0
+2026-04-10,Ives Hall,540.895,0.0,0.0
+2026-04-10,Nichols Hall,0.0,0.0,0.0
+2026-04-10,Physical Education,1307.57,0.0,0.0
+2026-04-10,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-10,Student Center,1344.3743,0.0,0.0
+2026-04-10,Student Health Center,0.0,0.0,0.0
+2026-04-10,Wine Spectator Learning Ctr,2959.02,0.0,0.0
+2026-04-11,Campus Misc,4.18,0.0,0.0
+2026-04-11,Green Music Center,22002.2719,0.0,0.0
+2026-04-11,Ives Hall,2233.6555,0.0,0.0
+2026-04-11,Nichols Hall,0.0,0.0,0.0
+2026-04-11,Physical Education,1279.64,0.0,0.0
+2026-04-11,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-11,Student Center,724.1547,0.0,0.0
+2026-04-11,Student Health Center,0.0,0.0,0.0
+2026-04-11,Wine Spectator Learning Ctr,2468.27,0.0,0.0
+2026-04-12,Campus Misc,3.93,0.0,0.0
+2026-04-12,Green Music Center,76207.0186,0.0,0.0
+2026-04-12,Ives Hall,1549.5353,0.0,0.0
+2026-04-12,Nichols Hall,0.0,0.0,0.0
+2026-04-12,Physical Education,1256.39,0.0,0.0
+2026-04-12,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-12,Student Center,871.7977,0.0,0.0
+2026-04-12,Student Health Center,0.0,0.0,0.0
+2026-04-12,Wine Spectator Learning Ctr,2274.06,0.0,0.0
+2026-04-13,Campus Misc,0.03,0.0,0.0
+2026-04-13,Green Music Center,34823.827,0.0,0.0
+2026-04-13,Ives Hall,1270.9483,0.0,0.0
+2026-04-13,Nichols Hall,26.329,0.0,0.0
+2026-04-13,Physical Education,1298.44,0.0,0.0
+2026-04-13,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-13,Student Center,2570.4052,0.0,0.0
+2026-04-13,Student Health Center,0.0,0.0,0.0
+2026-04-13,Wine Spectator Learning Ctr,3399.9,0.0,0.0
+2026-04-14,Green Music Center,19739.9707,0.0,0.0
+2026-04-14,Ives Hall,1434.3597,0.0,0.0
+2026-04-14,Nichols Hall,0.0,0.0,0.0
+2026-04-14,Physical Education,1377.61,0.0,0.0
+2026-04-14,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-14,Student Center,2082.817,0.0,0.0
+2026-04-14,Student Health Center,0.0,0.0,0.0
+2026-04-14,Wine Spectator Learning Ctr,3488.89,0.0,0.0
+2026-04-15,Green Music Center,39406.0488,0.0,0.0
+2026-04-15,Ives Hall,1148.145,0.0,0.0
+2026-04-15,Nichols Hall,25.062,0.0,0.0
+2026-04-15,Physical Education,1412.94,0.0,0.0
+2026-04-15,Rachel Carson Hall,0.0,0.0,0.0
+2026-04-15,Student Center,2839.4565,0.0,0.0
+2026-04-15,Student Health Center,0.0,0.0,0.0
+2026-04-15,Wine Spectator Learning Ctr,3719.38,0.0,0.0
