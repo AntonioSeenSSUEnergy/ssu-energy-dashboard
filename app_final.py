@@ -1169,7 +1169,10 @@ else:
 # ══════════════════════════════════════════════════════════════════════════════
 if active_tab == "Overview":
 
-
+    st.image(
+        "dashboard_header.png",
+        use_container_width=True
+    )
 
     
     # All-time campus energy chart
