@@ -70,7 +70,13 @@ def load_weekly() -> pd.DataFrame:
     (network blip, deploy in flight), falls back to the local copy
     committed alongside the app — keeps the dashboard working even if
     Hostinger is briefly unreachable.
+
+    The HTTP Last-Modified header is captured into df.attrs["last_modified"]
+    so the UI can show "Latest data: <actual refresh time>" instead of
+    inferring from week-bucket dates. This is the real moment the pipeline
+    wrote the file, which matches what the user is asking for.
     """
+    import urllib.request, email.utils, io
     cols = ["week", "building", "kWh", "thermal_kWh", "gas_therm",
             "water_gallon", "heating_dd", "normalized_kWh"]
     # st.secrets.get() raises if no secrets file exists at all (local dev),
@@ -82,8 +88,28 @@ def load_weekly() -> pd.DataFrame:
     except Exception:
         url = "https://faridfarahmand.net/data/weekly_energy.csv"
     df = None
+    last_modified_dt = None  # pd.Timestamp or None
     try:
-        df = pd.read_csv(url, low_memory=False)
+        # Fetch with urllib so we can read the Last-Modified response header.
+        # 10s timeout matches what Streamlit Cloud will tolerate without
+        # blocking the page render too long.
+        req = urllib.request.Request(url, headers={"User-Agent": "ssu-dashboard"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw_bytes = resp.read()
+            lm_header = resp.headers.get("Last-Modified")
+            if lm_header:
+                # RFC 2822 date format from HTTP — parse and KEEP IN UTC.
+                # Hostinger's cron schedule (0 6 * * *) runs at 6 AM server
+                # local time, which is 6 AM UTC. Displaying that as 11 PM
+                # Pacific the previous day was technically correct but
+                # confusing for users — better to show the same time the
+                # cron schedule actually uses.
+                try:
+                    lm_utc = email.utils.parsedate_to_datetime(lm_header)
+                    last_modified_dt = pd.Timestamp(lm_utc)
+                except Exception:
+                    last_modified_dt = None
+        df = pd.read_csv(io.BytesIO(raw_bytes), low_memory=False)
     except Exception as e:
         st.warning(f"Remote CSV unreachable ({e}); falling back to local copy.")
         base = os.path.dirname(os.path.abspath(__file__))
@@ -105,6 +131,11 @@ def load_weekly() -> pd.DataFrame:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+    # Stash the last-modified timestamp on the DataFrame so downstream UI
+    # code can show it. attrs survives copy/groupby/etc, unlike adding a
+    # column we'd need to filter out everywhere.
+    if last_modified_dt is not None:
+        df.attrs["last_modified"] = last_modified_dt
     return df
 
 st.set_page_config(
@@ -460,11 +491,16 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame(columns=["week", "building", "kWh", "thermal_kWh",
                                      "gas_therm", "water_gallon",
                                      "heating_dd", "normalized_kWh"]), set()
+    # Preserve the load_weekly attrs (e.g. last_modified) across copy/filter
+    # operations — pandas does not automatically forward .attrs through
+    # boolean indexing or .copy().
+    _saved_attrs = dict(weekly.attrs)
     # Ensure week is a string (YYYY-MM-DD) for downstream comparisons
     if pd.api.types.is_datetime64_any_dtype(weekly["week"]):
         weekly = weekly.copy()
         weekly["week"] = weekly["week"].dt.date.astype(str)
     weekly = weekly[weekly["kWh"] > 0].copy()
+    weekly.attrs.update(_saved_attrs)
     return weekly, set()
 
 
@@ -667,11 +703,26 @@ def plot_base(height=300):
     )
 
 
-def week_label(w):
-    """Convert '2026-02-02' → 'Feb 2 – Feb 8, 2026'"""
+def week_label(w, cap_at=None):
+    """
+    Convert '2026-02-02' → 'Feb 2 – Feb 8, 2026'.
+
+    cap_at (optional): a date or pd.Timestamp. If the week's natural end
+    (start + 6 days) is AFTER cap_at, the displayed end is replaced with
+    cap_at — so an in-progress current week reads e.g. 'May 4 – May 9, 2026'
+    instead of 'May 4 – May 10, 2026' when only May 4-9 of data exists.
+    The underlying bucket (start date) is unchanged — this only affects
+    the human-readable label.
+    """
     try:
         start = pd.to_datetime(str(w).split("/")[0].strip())
         end   = start + pd.Timedelta(days=6)
+        if cap_at is not None:
+            cap_ts = pd.to_datetime(cap_at) if not isinstance(cap_at, pd.Timestamp) else cap_at
+            # Only narrow the label if the cap falls inside this week — never
+            # beyond it. Past weeks always render their full Mon-Sun range.
+            if cap_ts < end and cap_ts >= start:
+                end = cap_ts
         ss = start.strftime("%b ") + start.strftime("%d").lstrip("0")
         es = end.strftime("%b ")   + end.strftime("%d").lstrip("0")
         return f"{ss} – {es}, {end.year}"
@@ -986,11 +1037,25 @@ section[data-testid="stSidebar"] .sidebar-title {
         avail_w = list(reversed(all_weeks))
         st.markdown('<p style="color:#c8d9ea;font-size:1.0rem;font-weight:700;margin-bottom:2px;">Select up to 4 weeks</p>', unsafe_allow_html=True)
         _default_weeks = [_latest_week_default] if _latest_week_default else []
+        # Multiselect format_func stays uncapped: when the user is picking a
+        # week from the list, we want to show the full Mon–Sun bucket label
+        # so the choice is unambiguous.
         selected_weeks = st.multiselect(
             "weeks", avail_w, default=_default_weeks,
             format_func=week_label, label_visibility="collapsed")
         df_view      = df_all.copy()
-        period_label = week_label
+        # period_label IS capped: chart axis labels, KPI titles, headers
+        # all use this. For an in-progress current week, the label reads
+        # "May 4 – May 9, 2026" instead of "May 4 – May 10, 2026" so users
+        # don't think we're showing a complete 7-day total when we aren't.
+        # Cap source: prefer the CSV's actual Last-Modified date (the moment
+        # the pipeline last regenerated the file); fall back to today.
+        _cap_lm = df_all.attrs.get("last_modified")
+        if _cap_lm is not None:
+            _wk_label_cap = pd.Timestamp(_cap_lm.date())
+        else:
+            _wk_label_cap = pd.Timestamp(datetime.datetime.now().date())
+        period_label = lambda w: week_label(w, cap_at=_wk_label_cap)
 
     elif time_filter == "Monthly":
         df_all["_period"] = df_all["_wstart"].dt.to_period("M").astype(str)
@@ -1170,15 +1235,41 @@ section[data-testid="stSidebar"] .sidebar-title {
     if _tab not in nav_opts:
         active_tab = "Overview"
 
-    # Latest date — show actual latest day not week
-    if all_weeks:
-        _latest_day_display = (pd.to_datetime(all_weeks[-1]) + pd.Timedelta(days=6)).strftime("%B %d, %Y")
+    # Latest data display — prefer the CSV's HTTP Last-Modified header (the
+    # actual moment the pipeline regenerated the file). If the header isn't
+    # available (offline fallback, missing header), use the latest week-end
+    # capped at today so we never claim future-day data.
+    _last_mod = df_all.attrs.get("last_modified")
+    if _last_mod is not None:
+        # Show date + time so it's unambiguous when the data refreshed.
+        # We keep the timestamp in UTC (matching Hostinger's cron schedule
+        # of 0 6 * * *, which is 6 AM UTC) and append "UTC" to the label so
+        # there is no timezone ambiguity. e.g. "May 10, 2026 at 6:00 AM UTC"
+        # Note: %-I (no-leading-zero hour) is Linux-only; %#I is Windows-only.
+        # For cross-platform safety we format with leading zero and strip it
+        # manually. Avoids ValueError on Windows local dev.
+        _hour_padded = _last_mod.strftime("%I")
+        _hour_clean  = _hour_padded.lstrip("0") or "0"
+        _latest_day_display = (
+            _last_mod.strftime("%B %d, %Y at ")
+            + _hour_clean
+            + _last_mod.strftime(":%M %p")
+            + " UTC"
+        )
+        _latest_label = "Data refreshed:"
+    elif all_weeks:
+        _week_end       = pd.to_datetime(all_weeks[-1]) + pd.Timedelta(days=6)
+        _today          = pd.Timestamp(datetime.datetime.now().date())
+        _latest_actual  = min(_week_end, _today)
+        _latest_day_display = _latest_actual.strftime("%B %d, %Y")
+        _latest_label = "Latest data:"
     else:
         _latest_day_display = "—"
+        _latest_label = "Latest data:"
     st.markdown(
         f'<div style="font-size:1.0rem;font-weight:600;color:#7ab4d4;line-height:1.9;">'
         f'{len(all_weeks)} week(s) in database<br>'
-        f'Latest: {_latest_day_display}</div>',
+        f'{_latest_label} {_latest_day_display}</div>',
         unsafe_allow_html=True)
 
 
@@ -2232,8 +2323,18 @@ elif active_tab == "DataIntegrity":
     _di_earliest = all_weeks[0]
     wdf = df_all[df_all["week"] == _di_latest].sort_values("kWh", ascending=False)
 
+    # Cap the displayed week-end at the actual data refresh date so the
+    # "Verified Data — May 4 – May X" header doesn't claim a full week
+    # before it's complete. Match the same source used by the sidebar
+    # "Data refreshed:" line for consistency.
+    _di_lm = df_all.attrs.get("last_modified")
+    if _di_lm is not None:
+        _di_cap = pd.Timestamp(_di_lm.date())
+    else:
+        _di_cap = pd.Timestamp(datetime.datetime.now().date())
+
     st.markdown(
-        f'<div class="sec-label">Verified Data — {week_label(_di_latest)}'
+        f'<div class="sec-label">Verified Data — {week_label(_di_latest, cap_at=_di_cap)}'
         + (' <span style="color:#3b82f6;font-size:0.75rem;font-weight:700;'
            'background:#dbeafe;border-radius:4px;padding:2px 8px;margin-left:6px;">'
            '⚡ FROM RAW CSV</span>' if _di_latest in _raw_weeks else '') +
@@ -2265,7 +2366,7 @@ elif active_tab == "DataIntegrity":
 
     st.markdown(
         f'<div style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:8px;margin-bottom:4px;">'
-        f'Showing most recent week: {week_label(_di_latest)}. '
+        f'Showing most recent week: {week_label(_di_latest, cap_at=_di_cap)}. '
         f'kWh includes both electric meters and thermal energy sensors (heating &amp; cooling loops) '
         f'converted to kWh. Gas and water meters currently have no data available.'
         f'</div>', unsafe_allow_html=True)
@@ -2573,7 +2674,16 @@ elif active_tab == "DataIntegrity":
     st.markdown('<div class="sec-label">Data Summary</div>', unsafe_allow_html=True)
 
     _start_dt  = pd.to_datetime(_di_earliest)
-    _end_dt    = pd.to_datetime(_di_latest) + pd.Timedelta(days=6)
+    # End-of-data date: prefer the CSV's actual last-modified time (the
+    # moment Hostinger regenerated it). Fall back to latest week's Sunday
+    # capped at today so we don't advertise future-day data.
+    _last_mod_di = df_all.attrs.get("last_modified")
+    if _last_mod_di is not None:
+        _end_dt = pd.Timestamp(_last_mod_di.date())
+    else:
+        _week_end_dt = pd.to_datetime(_di_latest) + pd.Timedelta(days=6)
+        _today_dt    = pd.Timestamp(datetime.datetime.now().date())
+        _end_dt      = min(_week_end_dt, _today_dt)
     _start_str = _start_dt.strftime("%B %d, %Y") if _start_dt else _di_earliest
     _end_str   = _end_dt.strftime("%B %d, %Y")   if _end_dt   else _di_latest
     _now_str   = datetime.datetime.now().strftime("%B %d, %Y  —  %I:%M %p")
