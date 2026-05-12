@@ -1,0 +1,13 @@
+name: Keep Alive
+on:
+  schedule:
+    - cron: '0 */8 * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit app
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+          https://ssu-energy-dashboard-usb4padbsjz7yz8tdq36zz.streamlit.app/
