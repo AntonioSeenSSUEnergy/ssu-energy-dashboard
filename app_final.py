@@ -1,4 +1,17 @@
-"""SSU Campus Energy Dashboard."""
+"""
+SSU Campus Energy Dashboard
+Reads from raw interval CSVs (YYYYMMDD.csv / YYYYMMDDint.csv) using the exact
+same cleaning logic as master_pipeline.py, then falls back to daily_energy.csv
+for historical dates not covered by raw files.
+
+Raw CSV discovery order (all are scanned and merged):
+  1. Same directory as this file
+  2. ./raw_data/
+  3. ./uploads/
+
+Raw-CSV results ALWAYS override daily_energy.csv for the same date — this
+prevents corrupted DB-generated CSVs from poisoning the dashboard.
+"""
 
 import base64
 import datetime
@@ -11,7 +24,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# Shared cleaning logic from energy_core
+# ─── Single source of truth for pipeline constants ────────────────────────────
+# All cleaning/conversion/routing rules live in energy_core.py — the same
+# module master_pipeline.py imports from. Importing here (instead of keeping
+# private copies) guarantees the dashboard and the pipeline can never drift
+# on unit conversion factors, the _MBTU→kBTU remap, the gas-meter override,
+# the point-id → building map, or the raw-CSV filename pattern.
+#
+# Deployment: energy_core.py must sit alongside this file (same directory).
+# On Streamlit Community Cloud, commit it to the same repo.
 from energy_core import (
     POINT_ID_MAP,
     UNIT_TO_KWH,
@@ -24,7 +45,10 @@ from energy_core import (
     to_kwh,
 )
 
-# Logo loader
+# ─── Logo loader ──────────────────────────────────────────────────────────────
+# Load the header banner from a PNG in the same folder as this script, rather
+# than embedding a large base64 blob inline. Both _LOGO_B64_LB (Leaderboard)
+# and _LOGO_B64_DI (Data Integrity) point to the same image.
 def _load_logo_b64() -> str:
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_header.png")
     try:
@@ -37,29 +61,23 @@ _LOGO_B64_LB = _load_logo_b64()
 _LOGO_B64_DI = _LOGO_B64_LB
 
 def load_weekly() -> pd.DataFrame:
-    """Fetch weekly_energy.csv from the Hostinger pipeline output."""
-    import urllib.request, email.utils, io
+    """
+    Fetch weekly_energy.csv from the Hostinger pipeline output.
+
+    The Hostinger cron regenerates the CSV daily at 06:00. The dashboard
+    fetches it over HTTPS and caches the result; the URL is configurable
+    via the Streamlit secret WEEKLY_CSV_URL. If the remote fetch fails
+    (network blip, deploy in flight), falls back to the local copy
+    committed alongside the app — keeps the dashboard working even if
+    Hostinger is briefly unreachable.
+    """
     cols = ["week", "building", "kWh", "thermal_kWh", "gas_therm",
             "water_gallon", "heating_dd", "normalized_kWh"]
-    try:
-        url = st.secrets.get("WEEKLY_CSV_URL",
-                             "https://faridfarahmand.net/data/weekly_energy.csv")
-    except Exception:
-        url = "https://faridfarahmand.net/data/weekly_energy.csv"
+    url = st.secrets.get("WEEKLY_CSV_URL",
+                         "https://faridfarahmand.net/data/weekly_energy.csv")
     df = None
-    last_modified_dt = None
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ssu-dashboard"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw_bytes = resp.read()
-            lm_header = resp.headers.get("Last-Modified")
-            if lm_header:
-                try:
-                    lm_utc = email.utils.parsedate_to_datetime(lm_header)
-                    last_modified_dt = pd.Timestamp(lm_utc)
-                except Exception:
-                    last_modified_dt = None
-        df = pd.read_csv(io.BytesIO(raw_bytes), low_memory=False)
+        df = pd.read_csv(url, low_memory=False)
     except Exception as e:
         st.warning(f"Remote CSV unreachable ({e}); falling back to local copy.")
         base = os.path.dirname(os.path.abspath(__file__))
@@ -70,16 +88,17 @@ def load_weekly() -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(columns=cols)
 
-    # Normalise week column
+    # Normalise week column — accept YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD
     df["week"] = df["week"].astype(str).str.strip().str.split("/").str[0]
     df["week"] = pd.to_datetime(df["week"], errors="coerce").dt.strftime("%Y-%m-%d")
     df = df.dropna(subset=["week"]).copy()
+    # Ensure numeric columns. thermal_kWh is optional — older weekly_energy.csv
+    # files (pre-pipeline-update) don't have it; we default to 0 so the
+    # runtime raw-CSV fallback can fill it in.
     for col in ["kWh", "thermal_kWh", "gas_therm", "water_gallon", "heating_dd", "normalized_kWh"]:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-    if last_modified_dt is not None:
-        df.attrs["last_modified"] = last_modified_dt
     return df
 
 st.set_page_config(
@@ -89,7 +108,9 @@ st.set_page_config(
 )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # STYLES
+# ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -230,14 +251,41 @@ div[data-testid="column"] { padding: 0 6px !important; }
 """, unsafe_allow_html=True)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE CLEANING LOGIC
+# ══════════════════════════════════════════════════════════════════════════════
+# All constants and the per-cell parser were removed from this file in the
+# energy_core consolidation — see the import block at the top. The cleaning
+# rules (unit table, point-id map, _MBTU→kBTU remap, gas-meter override,
+# valid-unit set, thermal-unit subset, the cell-parsing regex with quote
+# stripping, and the raw-CSV filename pattern) now live exclusively in
+# energy_core.py and are shared with master_pipeline.py.
+#
+# `_process_one_csv` below is a thin wrapper: it delegates the actual work
+# to energy_core.process_csv (which returns a flat row-level DataFrame),
+# then re-shapes the result into the nested-dict structure the rest of this
+# module's downstream code expects.
 
 def _process_one_csv(filepath: str) -> dict:
-    """Wrapper over energy_core.process_csv."""
+    """
+    Wrapper over energy_core.process_csv. Aggregates the flat DataFrame it
+    returns into the nested dict shape this module's downstream code expects:
+
+        { date_str: { building: { 'kWh', 'thermal_kWh', 'therm', 'gallon' } } }
+
+    Numeric semantics are identical to the previous in-file implementation:
+      - 'kWh' is the sum of every energy-table row converted via to_kwh.
+      - 'thermal_kWh' is the subset of those rows whose unit is in
+        THERMAL_UNITS (BTU/kBTU/MBTU/tonref). kWh and Wh stay classified
+        as electric — exactly what the Thermal tab expects.
+      - 'therm' / 'gallon' are raw, no conversion.
+    """
     cleaned, _stats = _ec_process_csv(filepath)
     if cleaned.empty:
         return {}
 
+    # energy_core writes timestamp as 'YYYY-MM-DD HH:MM:SS' — derive the
+    # bare date once for the per-day grouping the dashboard needs.
     cleaned = cleaned.copy()
     cleaned["_date"] = pd.to_datetime(cleaned["timestamp"], errors="coerce").dt.date.astype(str)
     cleaned = cleaned[cleaned["_date"] != "NaT"]
@@ -265,7 +313,21 @@ def _process_one_csv(filepath: str) -> dict:
 
 
 def _find_raw_csv_files() -> list[str]:
-    """Scan for raw CSV files matching the YYYYMMDD pattern."""
+    """
+    Scan for raw CSV files matching YYYYMMDD.csv / YYYYMMDDint.csv / YYYYMMDDpge.csv.
+
+    Searches recursively in these roots (all optional — missing roots skipped):
+      - same directory as this script
+      - ./raw_data/
+      - ./uploads/          (pipeline's pre-processing staging area)
+      - ./processed/        (pipeline's post-processing archive — critical for
+                             keeping thermal_kWh accurate after the pipeline
+                             moves files out of uploads/)
+
+    Deduplicates by filename so the same CSV appearing in multiple search roots
+    (e.g. moved from uploads/ to processed/ during a pipeline run) is only
+    processed once.
+    """
     base = os.path.dirname(os.path.abspath(__file__))
     search_roots = [
         base,
@@ -286,12 +348,19 @@ def _find_raw_csv_files() -> list[str]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _process_raw_csvs() -> tuple[pd.DataFrame, set]:
-    """Process all discovered raw CSV files."""
+    """
+    Process all discovered raw CSV files using the pipeline cleaning logic.
+    Returns:
+        (daily_df, raw_dates_set)
+        daily_df   — DataFrame with columns [date, building, kWh, gas_therm, water_gallon]
+        raw_dates_set — set of date strings covered by raw CSVs
+    """
     files = _find_raw_csv_files()
     if not files:
         return pd.DataFrame(columns=["date", "building", "kWh", "thermal_kWh",
                                      "gas_therm", "water_gallon"]), set()
 
+    # Merge results from all files; same-date same-building values are summed
     merged: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
     for fp in files:
         result = _process_one_csv(fp)
@@ -320,18 +389,30 @@ def _process_raw_csvs() -> tuple[pd.DataFrame, set]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_daily_data() -> pd.DataFrame:
-    """Build the authoritative daily DataFrame."""
+    """
+    Build the authoritative daily DataFrame:
+      1. Load daily_energy.csv (historical fallback)
+      2. Process raw CSVs
+      3. Drop daily_energy rows for any date that raw CSVs cover
+      4. Append raw-CSV rows
+    Result columns: [date, building, kWh, gas_therm, water_gallon]
+    """
     DAILY_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_energy.csv")
 
+    # --- Raw CSV layer ---
     raw_df, raw_dates = _process_raw_csvs()
 
+    # --- Historical layer ---
     hist_rows = []
     if os.path.exists(DAILY_CSV):
         hist = pd.read_csv(DAILY_CSV)
         for col in ("gas_therm", "water_gallon", "thermal_kWh"):
             if col not in hist.columns:
+                # Historical daily_energy.csv doesn't carry thermal split — default to 0.
+                # Accurate thermal is only available for weeks covered by raw CSVs.
                 hist[col] = 0.0
         hist["date"] = hist["date"].astype(str).str.strip()
+        # Only keep dates NOT covered by raw CSVs
         hist_filtered = hist[~hist["date"].isin(raw_dates)].copy()
         hist_rows = hist_filtered[["date", "building", "kWh", "thermal_kWh",
                                     "gas_therm", "water_gallon"]].to_dict("records")
@@ -349,6 +430,7 @@ def load_daily_data() -> pd.DataFrame:
     daily["date"] = pd.to_datetime(daily["date"], errors="coerce")
     daily = daily.dropna(subset=["date"]).copy()
     daily["date"] = daily["date"].dt.normalize()
+    # Aggregate (in case both sources overlap after filtering — shouldn't, but safe)
     daily = (
         daily.groupby(["date", "building"])
         .agg(kWh=("kWh", "sum"),
@@ -363,22 +445,26 @@ def load_daily_data() -> pd.DataFrame:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_data() -> pd.DataFrame:
-    """Read weekly_energy.csv directly."""
+    """
+    Read weekly_energy.csv directly (new pipeline output).
+    Returns (weekly_df, raw_dates) to preserve the old tuple signature.
+    """
     weekly = load_weekly()
     if weekly.empty:
         return pd.DataFrame(columns=["week", "building", "kWh", "thermal_kWh",
                                      "gas_therm", "water_gallon",
                                      "heating_dd", "normalized_kWh"]), set()
-    _saved_attrs = dict(weekly.attrs)
+    # Ensure week is a string (YYYY-MM-DD) for downstream comparisons
     if pd.api.types.is_datetime64_any_dtype(weekly["week"]):
         weekly = weekly.copy()
         weekly["week"] = weekly["week"].dt.date.astype(str)
     weekly = weekly[weekly["kWh"] > 0].copy()
-    weekly.attrs.update(_saved_attrs)
     return weekly, set()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # CONSTANTS
+# ══════════════════════════════════════════════════════════════════════════════
 PLOT_BG   = "#ffffff"
 PLOT_GRID = "#f1f5f9"
 PLOT_TEXT = "#111827"
@@ -441,9 +527,11 @@ SENSOR_REGISTRY = [
 ]
 
 
-# Map utility-type to the row's contribution
+# Map utility-type to df_all column-derived "is this row contributing data?" check.
+# - Electric value is implicit: total kWh minus the thermal subset = electric kWh.
+# - Thermal/gas/water map directly to a single column.
 def _row_contribution(row, utility: str) -> float:
-    """Return how much of `utility` a single df_all row carries."""
+    """Return how much of `utility` a single df_all row carries. Zero if none."""
     if utility == "Electric":
         # Total kWh minus thermal portion = electric kWh
         kwh   = float(row.get("kWh") or 0)
@@ -459,13 +547,36 @@ def _row_contribution(row, utility: str) -> float:
 
 
 def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
-    """Derive Status and Notes for each sensor from df_all."""
+    """
+    For each (building, utility) pair in SENSOR_REGISTRY, derive a current
+    Status + Notes from df_all instead of relying on the hand-curated values.
+
+    Returns a dict keyed by sensor_id with values (status, notes_text).
+    Status is one of: "OK", "Review", "Missing", "PGE".
+
+    The signal we have is per-(building, utility) since the weekly CSV
+    aggregates multiple sensors of the same utility at the same building
+    into one column. Sensors of the same (building, utility) therefore
+    share a status — that's the most honest verdict the data supports.
+
+    Verdicts:
+      - PGE   → preserved verbatim from registry (these are utility-account
+                meters, not BMS sensors; their identity is metadata, not
+                derivable from the weekly CSV)
+      - OK    → at least one nonzero reading in the most recent
+                `recent_weeks` weeks for this (building, utility)
+      - Review → has historical nonzero readings but nothing in the recent
+                window (meter may have gone offline or been disconnected)
+      - Missing → no nonzero readings ever for this (building, utility)
+    """
     out: dict[str, tuple[str, str]] = {}
     if df_all is None or df_all.empty:
+        # Defensive: keep the static notes if there's no data to derive from.
         for bld, sid, util, unit, status, notes in SENSOR_REGISTRY:
             out[sid] = (status, notes)
         return out
 
+    # Determine the recent-window cutoff
     df_dates = df_all.dropna(subset=["_wstart"]).copy()
     if df_dates.empty:
         for bld, sid, util, unit, status, notes in SENSOR_REGISTRY:
@@ -474,12 +585,13 @@ def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
     latest_week = df_dates["_wstart"].max()
     recent_cut  = latest_week - pd.Timedelta(weeks=recent_weeks)
 
+    # Pre-aggregate per (building) to make repeated lookups cheap
     by_bld_all     = df_dates.groupby("building")
     df_recent      = df_dates[df_dates["_wstart"] > recent_cut]
     by_bld_recent  = df_recent.groupby("building")
 
     def _bld_utility_total(grouper, bld: str, util: str) -> tuple[float, pd.Timestamp | None]:
-        """Total contribution and last-seen week for this (building, utility)."""
+        """Total contribution + last-seen week for this (building, utility)."""
         if bld not in grouper.groups:
             return 0.0, None
         rows = grouper.get_group(bld)
@@ -490,7 +602,8 @@ def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
         return total, last_seen
 
     for bld, sid, util, unit, orig_status, orig_notes in SENSOR_REGISTRY:
-        # PG&E utility-account meters: preserve identity
+        # PG&E utility-account meters: preserve their identity. Derive a
+        # truthful note from recent activity but keep the PGE badge.
         if orig_status == "PGE":
             recent_total, _ = _bld_utility_total(by_bld_recent, bld, util)
             if recent_total > 0:
@@ -506,9 +619,11 @@ def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
         recent_total, _        = _bld_utility_total(by_bld_recent, bld, util)
 
         if recent_total > 0:
+            # Active in the last 4 weeks
             note = f"Active — last reading {last_seen.strftime('%b %d, %Y')}"
             out[sid] = ("OK", note)
         elif all_total > 0:
+            # Has data historically but nothing recent
             weeks_since = max(0, int((latest_week - last_seen).days // 7)) if last_seen else None
             since_str = (f" ({weeks_since} weeks ago)"
                          if weeks_since and weeks_since > 0 else "")
@@ -517,13 +632,16 @@ def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
                     f"{since_str}. Meter may be offline.")
             out[sid] = ("Review", note)
         else:
+            # Nothing ever — meter never reported through the pipeline
             note = "No data received — sensor not contributing to weekly CSV"
             out[sid] = ("Missing", note)
 
     return out
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def plot_base(height=300):
     return dict(
         paper_bgcolor=PLOT_BG, plot_bgcolor=PLOT_BG,
@@ -543,15 +661,11 @@ def plot_base(height=300):
     )
 
 
-def week_label(w, cap_at=None):
-    """Convert '2026-02-02' to 'Feb 2 – Feb 8, 2026'."""
+def week_label(w):
+    """Convert '2026-02-02' → 'Feb 2 – Feb 8, 2026'"""
     try:
         start = pd.to_datetime(str(w).split("/")[0].strip())
         end   = start + pd.Timedelta(days=6)
-        if cap_at is not None:
-            cap_ts = pd.to_datetime(cap_at) if not isinstance(cap_at, pd.Timestamp) else cap_at
-            if cap_ts < end and cap_ts >= start:
-                end = cap_ts
         ss = start.strftime("%b ") + start.strftime("%d").lstrip("0")
         es = end.strftime("%b ")   + end.strftime("%d").lstrip("0")
         return f"{ss} – {es}, {end.year}"
@@ -570,7 +684,10 @@ def fmt_cost(v):
 
 
 def fmt_power(kwh: float, days: float) -> str:
-    """Average power in kW or MW."""
+    """
+    Average power = kWh / (days × 24 h). Returns kW or MW string.
+    Returns "—" when days is non-positive (avoids divide-by-zero).
+    """
     if days is None or days <= 0:
         return "—"
     kw = kwh / (days * 24.0)
@@ -580,14 +697,27 @@ def fmt_power(kwh: float, days: float) -> str:
 
 
 def fmt_co2(kwh: float, factor: float) -> str:
-    """CO2 in kg and metric tons."""
+    """CO₂ in kg + metric tons. Always shows both for consistency."""
     kg = kwh * factor
     tons = kg / 1000.0
     return f"{kg:,.0f} kg ({tons:,.0f} t)"
 
 
 def render_kpis(items, columns=None):
-    """Render a row of stat cards."""
+    """
+    Render a row of stat cards in the unified KPI style.
+
+    Each item is a dict: {"label": str, "value": str, "note": Optional[str]}
+    label   → small all-caps muted heading
+    value   → large bold navy number
+    note    → optional small muted line below the value (e.g. "23,660 MWh"
+              under "23.66 GWh", or the cost subtotal under the headline)
+
+    `columns` controls how many cards per row; defaults to len(items).
+    Renders inline as HTML (Streamlit's st.metric can't be styled enough
+    to match this look). Card style: soft gray fill, slate border, rounded
+    corners, balanced padding — readable at glance and easy on the eyes.
+    """
     n = len(items)
     if n == 0:
         return
@@ -621,14 +751,39 @@ def render_kpis(items, columns=None):
 
 
 def days_in_period(weeks: list, time_filter: str, df_scope: pd.DataFrame = None) -> float:
-    """Total exposure-days for a list of period keys."""
+    """
+    Total exposure-days for a list of period keys, used as the denominator for
+    Avg Power (kWh ÷ hours).
+
+    Behaviour:
+      - Weekly  → 7 days per selected week (each Monday-of-ISO-week covers 7 days)
+      - Monthly → ACTUAL data span of weeks falling within the selected months.
+                  Computed as (latest_week_start − earliest_week_start).days + 7.
+      - Yearly  → ACTUAL data span of weeks falling within the selected years.
+                  Same span formula as Monthly.
+
+    Why span-based for Monthly/Yearly:
+      The all-time "Campus Energy" header card uses the actual data span as its
+      Avg Power denominator (line ~1080). If Monthly/Yearly used calendar-based
+      math (e.g. 366+365+365 = 1,096 days when all three years are selected),
+      the same kWh would be divided by ~2.3× more hours, producing a different
+      Avg Power on the "Selected Periods" card than the all-time card — even
+      when the user picks every available year.
+
+    Fallback: if df_scope is None or the selection is empty, returns the old
+    calendar-based math so existing call sites without df_scope still work.
+
+    df_scope must contain columns 'week' (string YYYY-MM-DD) and '_wstart'
+    (datetime). Pass df_all for campus-wide; pass df_all.loc[df_all.building==b]
+    for a single-building span.
+    """
     n = len(weeks) if weeks else 0
     if n == 0:
         return 0.0
     if time_filter == "Weekly":
         return n * 7.0
 
-    # Monthly / Yearly: prefer actual data span when df_scope is supplied
+    # Monthly / Yearly — prefer actual data span when df_scope is supplied
     if df_scope is not None and not df_scope.empty and "_wstart" in df_scope.columns:
         d = df_scope.dropna(subset=["_wstart"]).copy()
         if time_filter == "Monthly":
@@ -640,8 +795,9 @@ def days_in_period(weeks: list, time_filter: str, df_scope: pd.DataFrame = None)
         d = d[d["_p"].isin([str(w) for w in weeks])]
         if not d.empty:
             return float((d["_wstart"].max() - d["_wstart"].min()).days + 7)
+        # else fall through to calendar fallback
 
-    # Calendar-based fallback
+    # Fallback — calendar-based math
     if time_filter == "Monthly":
         total = 0.0
         for w in weeks:
@@ -669,7 +825,9 @@ def badge_html(status):
     return f'<span class="badge {cls}">{label}</span>'
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # LOAD DATA
+# ══════════════════════════════════════════════════════════════════════════════
 _load_result = load_data()
 if isinstance(_load_result, tuple):
     df_all, _raw_dates_loaded = _load_result
@@ -683,13 +841,25 @@ if df_all.empty:
 
 all_weeks = sorted(df_all["week"].unique())
 
+# Determine which weeks are sourced from raw CSVs
 _daily_result = load_daily_data()
 _daily_df = _daily_result[0] if isinstance(_daily_result, tuple) else _daily_result
 _raw_dates_loaded = _daily_result[1] if isinstance(_daily_result, tuple) else set()
 
-# Thermal kWh resolution: prefer weekly_energy.csv, fall back to raw CSV
+# ── Thermal kWh resolution ────────────────────────────────────────────────
+# Priority order for the thermal_kWh value at each (week, building):
+#   1. weekly_energy.csv's thermal_kWh (authoritative — set by updated pipeline)
+#   2. Runtime computation from raw CSVs (fallback for historical weeks or
+#      for deployments where weekly_energy.csv predates the pipeline update)
+# Element-wise max gives the correct value in every case:
+#   - weekly=X, raw=X → X (they agree)
+#   - weekly=X, raw=0 → X (no raw CSV present, but weekly knows)
+#   - weekly=0, raw=X → X (old CSV, raw fills the gap)
+#   - weekly=0, raw=0 → 0 (no data, honest)
+# kWh totals are untouched in every branch.
 if not _daily_df.empty and "thermal_kWh" in _daily_df.columns:
     _wk = _daily_df.copy()
+    # Monday-of-ISO-week, matching master_pipeline's SQL week definition
     _wk["week"] = (_wk["date"] - pd.to_timedelta(_wk["date"].dt.dayofweek, unit="D")).dt.strftime("%Y-%m-%d")
     _th_by_wk_bld = (
         _wk.groupby(["week", "building"])["thermal_kWh"].sum()
@@ -700,8 +870,14 @@ if not _daily_df.empty and "thermal_kWh" in _daily_df.columns:
     df_all["_thermal_kWh_raw"] = df_all["_thermal_kWh_raw"].fillna(0.0)
     df_all["thermal_kWh"] = df_all[["thermal_kWh", "_thermal_kWh_raw"]].max(axis=1)
     df_all = df_all.drop(columns=["_thermal_kWh_raw"])
-    # Clamp: thermal_kWh must never exceed total kWh
+    # Safety clamp: thermal_kWh must NEVER exceed total kWh. If it does, it
+    # means weekly_energy.csv (kWh column) and the raw-CSV thermal split came
+    # from inconsistent snapshots. Without this clamp, electric_kWh =
+    # (kWh - thermal_kWh).clip(0) silently zeros out a building's real
+    # electric consumption on the Thermal and Data Integrity tabs.
     df_all["thermal_kWh"] = df_all[["thermal_kWh", "kWh"]].min(axis=1)
+# If no raw CSVs are available, df_all["thermal_kWh"] already has the correct
+# values from weekly_energy.csv (or 0.0 if the pipeline hasn't been updated yet).
 
 def _week_has_raw(w):
     try:
@@ -715,10 +891,14 @@ _raw_weeks = {w for w in all_weeks if _week_has_raw(w)}
 _n_raw_files = len(_find_raw_csv_files())
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
+# ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
+    # Sidebar dropdown styling: all dropdowns share the same dark outer look.
+    # Multiselect pills stay red; selectbox value reads directly on dark background.
     st.markdown("""
 <style>
 /* SELECTBOX — fill the whole inner control red, white text, no nested pill.
@@ -772,6 +952,7 @@ section[data-testid="stSidebar"] .sidebar-title {
 """, unsafe_allow_html=True)
 
     st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Section</p>', unsafe_allow_html=True)
+    # Temporary placeholder role check to determine nav_opts — will be resolved after role radio below
     _role_preview = st.session_state.get("_role_radio", "Student (Gamified)")
     if _role_preview == "Student (Gamified)":
         nav_opts_preview = ["📊 Electricity", "🔥 Thermal", "🏆 Leaderboard", "🔍 Data Integrity"]
@@ -783,29 +964,25 @@ section[data-testid="stSidebar"] .sidebar-title {
                   "Thermal" if "Thermal" in _tab else "DataIntegrity")
     st.markdown("---")
 
-    # TIME RANGE
+    # ── TIME RANGE ──────────────────────────────────────────────────────────
     st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Time Range</p>', unsafe_allow_html=True)
     time_filter = st.radio("time", ["Weekly", "Monthly", "Yearly"],
                            horizontal=True, label_visibility="collapsed")
 
     df_all["_wstart"] = pd.to_datetime(df_all["week"], errors="coerce")
 
+    # Compute the latest week for defaulting
     _latest_week_default = all_weeks[-1] if all_weeks else None
 
     if time_filter == "Weekly":
-        avail_w = list(reversed(all_weeks))
+        avail_w = all_weeks
         st.markdown('<p style="color:#c8d9ea;font-size:1.0rem;font-weight:700;margin-bottom:2px;">Select up to 4 weeks</p>', unsafe_allow_html=True)
         _default_weeks = [_latest_week_default] if _latest_week_default else []
         selected_weeks = st.multiselect(
             "weeks", avail_w, default=_default_weeks,
             format_func=week_label, label_visibility="collapsed")
         df_view      = df_all.copy()
-        _cap_lm = df_all.attrs.get("last_modified")
-        if _cap_lm is not None:
-            _wk_label_cap = pd.Timestamp(_cap_lm.date())
-        else:
-            _wk_label_cap = pd.Timestamp(datetime.datetime.now().date())
-        period_label = lambda w: week_label(w, cap_at=_wk_label_cap)
+        period_label = week_label
 
     elif time_filter == "Monthly":
         df_all["_period"] = df_all["_wstart"].dt.to_period("M").astype(str)
@@ -815,7 +992,7 @@ section[data-testid="stSidebar"] .sidebar-title {
                         gas_therm=("gas_therm", "sum"),
                         water_gallon=("water_gallon", "sum"))
                    .reset_index().rename(columns={"_period": "week"}))
-        all_periods = sorted(monthly["week"].unique(), reverse=True)
+        all_periods = sorted(monthly["week"].unique())
         def month_label(p):
             try:    return pd.to_datetime(p + "-01").strftime("%B %Y")
             except: return str(p)
@@ -834,7 +1011,7 @@ section[data-testid="stSidebar"] .sidebar-title {
                        gas_therm=("gas_therm", "sum"),
                        water_gallon=("water_gallon", "sum"))
                   .reset_index().rename(columns={"_period": "week"}))
-        all_periods = sorted(yearly["week"].unique(), reverse=True)
+        all_periods = sorted(yearly["week"].unique())
         def year_label(p): return str(p)
         st.markdown('<p style="color:#c8d9ea;font-size:1.0rem;font-weight:700;margin-bottom:2px;">Select years</p>', unsafe_allow_html=True)
         selected_weeks = st.multiselect(
@@ -845,7 +1022,7 @@ section[data-testid="stSidebar"] .sidebar-title {
 
     st.markdown("---")
 
-    # COST
+    # ── COST ────────────────────────────────────────────────────────────────
     st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Cost</p>', unsafe_allow_html=True)
     st.markdown('<p style="color:#a3bcd0;font-size:1.0rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;">Estimated Cost Rate ($/kWh)</p>', unsafe_allow_html=True)
     COST_RATE_OPTIONS = {
@@ -870,7 +1047,7 @@ section[data-testid="stSidebar"] .sidebar-title {
         f'All cost estimates use <b style="color:#ffffff">${ENERGY_RATE:.2f}/kWh</b></div>',
         unsafe_allow_html=True)
 
-    # CO2 emission factor
+    # CO₂ emission factor (kg per kWh) — drives all CO₂ readouts on the page.
     st.markdown(
         '<p style="color:#a3bcd0;font-size:1.0rem;font-weight:700;text-transform:uppercase;'
         'letter-spacing:0.06em;margin-top:14px;margin-bottom:2px;">CO₂ Emission Factor</p>',
@@ -889,37 +1066,26 @@ section[data-testid="stSidebar"] .sidebar-title {
         unsafe_allow_html=True)
     st.markdown("---")
 
-    # BUILDING DETAIL
+    # ── BUILDING DETAIL ──────────────────────────────────────────────────────
     st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Building Detail</p>', unsafe_allow_html=True)
 
+    # Compute the building list once here — all buildings that have ever reported
+    # data, sorted by total kWh (highest first). This drives the Overview and
+    # Thermal pages.
     _sidebar_bld_options = []
-    _sidebar_thermal_blds = set()
+    _sidebar_thermal_blds = set()  # buildings with non-zero thermal across all data
     if all_weeks:
-        _th_by_bld_total      = df_all.groupby("building")["thermal_kWh"].sum()
+        _temp_by_bld = df_all.groupby(["week", "building"])["kWh"].sum().reset_index()
+        _all_bld_kwh = _temp_by_bld.groupby("building")["kWh"].sum().sort_values(ascending=False).reset_index()
+        _sidebar_bld_options = _all_bld_kwh["building"].tolist()
+        # Identify which buildings have thermal data for the (none) annotation.
+        # Uses df_all so the answer is stable across time-range changes.
+        _th_by_bld_total = df_all.groupby("building")["thermal_kWh"].sum()
         _sidebar_thermal_blds = set(_th_by_bld_total[_th_by_bld_total > 0].index.tolist())
 
-        _scope_periods = list(selected_weeks) if selected_weeks else None
-        _scope_df      = df_view.copy()
-        if _scope_periods is not None:
-            _scope_df = _scope_df[_scope_df["week"].isin(_scope_periods)]
-
-        if active_tab == "Thermal":
-            _bld_th_kwh = (_scope_df.groupby("building")["thermal_kWh"].sum()
-                           .sort_values(ascending=False))
-            _bld_th_kwh = _bld_th_kwh[_bld_th_kwh > 0]
-            _sidebar_bld_options = _bld_th_kwh.index.tolist()
-        else:
-            _bld_kwh_scope = (_scope_df.groupby("building")["kWh"].sum()
-                              .sort_values(ascending=False))
-            _bld_kwh_scope = _bld_kwh_scope[_bld_kwh_scope > 0]
-            _sidebar_bld_options = _bld_kwh_scope.index.tolist()
-
-        if not _sidebar_bld_options:
-            _all_bld_kwh = (df_all.groupby("building")["kWh"].sum()
-                            .sort_values(ascending=False))
-            _sidebar_bld_options = _all_bld_kwh[_all_bld_kwh > 0].index.tolist()
-
     def _bld_dropdown_label(b: str) -> str:
+        # Underlying value passed downstream stays as the bare building name.
+        # Only the visible label gets the suffix.
         if b in _sidebar_thermal_blds:
             return b
         return f"{b}  ·  (no thermal data)"
@@ -932,20 +1098,14 @@ section[data-testid="stSidebar"] .sidebar-title {
             format_func=_bld_dropdown_label,
             label_visibility="collapsed"
         )
-        if active_tab != "Thermal":
-            st.markdown(
-                '<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:6px;line-height:1.6;">'
-                'Buildings marked <b style="color:#ffffff">"(no thermal data)"</b> '
-                'have electric meters only — selecting them in the Thermal tab will '
-                'show no thermal breakdown.'
-                '</div>',
-                unsafe_allow_html=True)
-        else:
-            st.markdown(
-                '<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:6px;line-height:1.6;">'
-                'Showing only buildings with thermal sensor data in the selected period(s).'
-                '</div>',
-                unsafe_allow_html=True)
+        # Tiny legend so the annotation is self-explanatory
+        st.markdown(
+            '<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:6px;line-height:1.6;">'
+            'Buildings marked <b style="color:#ffffff">"(no thermal data)"</b> '
+            'have electric meters only — selecting them in the Thermal tab will '
+            'show no thermal breakdown.'
+            '</div>',
+            unsafe_allow_html=True)
     else:
         _sidebar_sel_bld = None
 
@@ -954,42 +1114,30 @@ section[data-testid="stSidebar"] .sidebar-title {
     st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">View Mode</p>', unsafe_allow_html=True)
     role = st.radio("mode", ["Student (Gamified)", "Admin (Basic)"],
                     label_visibility="collapsed", key="_role_radio")
+    # Re-derive nav_opts and active_tab now that role is known
     if role == "Student (Gamified)":
         nav_opts = ["📊 Electricity", "🔥 Thermal", "🏆 Leaderboard", "🔍 Data Integrity"]
     else:
         nav_opts = ["📊 Electricity", "🔥 Thermal", "🔍 Data Integrity"]
+    # Keep active_tab consistent: if current _tab is no longer valid for this role, default to Overview
     if _tab not in nav_opts:
         active_tab = "Overview"
 
-    # Latest data display
-    _last_mod = df_all.attrs.get("last_modified")
-    if _last_mod is not None:
-        _hour_padded = _last_mod.strftime("%I")
-        _hour_clean  = _hour_padded.lstrip("0") or "0"
-        _latest_day_display = (
-            _last_mod.strftime("%B %d, %Y at ")
-            + _hour_clean
-            + _last_mod.strftime(":%M %p")
-            + " UTC"
-        )
-        _latest_label = "Data refreshed:"
-    elif all_weeks:
-        _week_end       = pd.to_datetime(all_weeks[-1]) + pd.Timedelta(days=6)
-        _today          = pd.Timestamp(datetime.datetime.now().date())
-        _latest_actual  = min(_week_end, _today)
-        _latest_day_display = _latest_actual.strftime("%B %d, %Y")
-        _latest_label = "Latest data:"
+    # Latest date — show actual latest day not week
+    if all_weeks:
+        _latest_day_display = (pd.to_datetime(all_weeks[-1]) + pd.Timedelta(days=6)).strftime("%B %d, %Y")
     else:
         _latest_day_display = "—"
-        _latest_label = "Latest data:"
     st.markdown(
         f'<div style="font-size:1.0rem;font-weight:600;color:#7ab4d4;line-height:1.9;">'
         f'{len(all_weeks)} week(s) in database<br>'
-        f'{_latest_label} {_latest_day_display}</div>',
+        f'Latest: {_latest_day_display}</div>',
         unsafe_allow_html=True)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # SELECTION STATE
+# ══════════════════════════════════════════════════════════════════════════════
 if selected_weeks:
     if len(selected_weeks) > 4:
         st.warning("Maximum 4 periods can be selected at once. Showing the most recent 4.")
@@ -1016,7 +1164,9 @@ else:
     pct_change        = None
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # OVERVIEW TAB
+# ══════════════════════════════════════════════════════════════════════════════
 if active_tab == "Overview":
 
     st.image(
@@ -1033,31 +1183,24 @@ if active_tab == "Overview":
         .reset_index()
         .sort_values("_month")
     )
-    # Per-month data completeness flag
-    _bld_per_month = (
-        _at[_at["kWh"] > 0]
-        .groupby("_month")["building"].nunique()
-        .reset_index(name="_n_bld")
-    )
-    _at_monthly = _at_monthly.merge(_bld_per_month, on="_month", how="left")
-    _at_monthly["_n_bld"] = _at_monthly["_n_bld"].fillna(0).astype(int)
-    _max_bld_seen          = int(_at_monthly["_n_bld"].max()) if not _at_monthly.empty else 0
-    _bld_threshold         = max(1, int(_max_bld_seen * 0.7))
-    _at_monthly["_partial"] = _at_monthly["_n_bld"] < _bld_threshold
-    _at_monthly["_label"]   = _at_monthly["_month"].dt.strftime("%b %Y") + \
-                              _at_monthly["_partial"].map({True: " *", False: ""})
+    _at_monthly["_label"] = _at_monthly["_month"].dt.strftime("%b %Y")
     _at_monthly["_mwh"]   = _at_monthly["kWh"] / 1000
     _at_total_kwh  = float(_at_monthly["kWh"].sum())
     _at_total_cost = _at_total_kwh * ENERGY_RATE
 
+    # Dynamic date range label
     if not _at_monthly.empty:
         _first_month = _at_monthly["_month"].iloc[0].to_timestamp().strftime("%b %Y")
-        _last_month_str = _at_monthly["_month"].iloc[-1].to_timestamp().strftime("%b %Y")
+        _last_month = _at_monthly["_month"].iloc[-1].to_timestamp() + pd.offsets.MonthEnd(0)
+        _last_month_str = _last_month.strftime("%b %d, %Y")
         _at_section_label = f"Campus Energy — {_first_month} to {_last_month_str}"
     else:
         _at_section_label = "Campus Energy — All Time"
     st.markdown(f'<div class="sec-label">{_at_section_label}</div>', unsafe_allow_html=True)
 
+    # Total elapsed days for Avg Power on the all-time view: from earliest week
+    # start to (latest week start + 7 days). Uses real data dates so it stays
+    # accurate as new weeks are added by the pipeline.
     if not _at.empty:
         _at_days_span = float((_at["_wstart"].max() - _at["_wstart"].min()).days + 7)
     else:
@@ -1065,6 +1208,7 @@ if active_tab == "Overview":
 
     _co2_kg = _at_total_kwh * EMISSION_FACTOR
     _co2_t  = _co2_kg / 1000.0
+    # Compact MWh subtotal as a "note" line under the headline GWh value
     _at_mwh = _at_total_kwh / 1000.0
     render_kpis([
         {"label": "Total Energy Consumed",
@@ -1089,7 +1233,9 @@ if active_tab == "Overview":
         '</p>',
         unsafe_allow_html=True)
 
-    # Range toggle: last 12 months vs all time
+    # Vertical bar chart — scales well across years.
+    # Range toggle: default to last 12 months for legibility, allow "show all"
+    # for the deep-dive view. Toggle is hidden when there's nothing to toggle.
     if len(_at_monthly) > 12:
         _range_choice = st.radio(
             "campus_energy_range",
@@ -1103,6 +1249,10 @@ if active_tab == "Overview":
 
     y_at_max = _at_monthly_view["_mwh"].max() * 1.35 if not _at_monthly_view.empty else 1
     _n_months = len(_at_monthly_view)
+    # Layout scaling: more months → taller chart (max 560px), rotated ticks
+    # earlier (>10), and bar value labels hidden once crowded (>12) to avoid
+    # the value-label overlap that makes the chart look noisy. Hover still
+    # shows the exact value per bar.
     _bar_chart_height = max(380, min(560, 340 + _n_months * 6))
     _show_bar_text    = _n_months <= 12
     _tick_angle       = -45 if _n_months > 10 else 0
@@ -1114,11 +1264,8 @@ if active_tab == "Overview":
         text=[f"{v:.1f}" for v in _at_monthly_view["_mwh"]] if _show_bar_text else None,
         textposition="outside" if _show_bar_text else "none",
         textfont=dict(size=14, color="#374151", family="Inter", weight=700),
-        hovertemplate="<b>%{x}</b><br>%{y:.1f} MWh  ·  $%{customdata[0]:,.0f}"
-                      "<br><span style='color:#9ca3af'>%{customdata[1]} buildings reporting</span>"
-                      "<extra></extra>",
-        customdata=list(zip(_at_monthly_view["kWh"] * ENERGY_RATE,
-                            _at_monthly_view["_n_bld"])),
+        hovertemplate="<b>%{x}</b><br>%{y:.1f} MWh  ·  $%{customdata:,.0f}<extra></extra>",
+        customdata=_at_monthly_view["kWh"] * ENERGY_RATE,
     ))
     fig_at.update_layout(
         **plot_base(height=_bar_chart_height),
@@ -1127,22 +1274,6 @@ if active_tab == "Overview":
     fig_at.update_xaxes(tickangle=_tick_angle, tickfont=dict(size=_tick_size, family="Inter", color=PLOT_TEXT, weight=700))
     fig_at.update_yaxes(range=[0, y_at_max], tickfont=dict(size=14, family="Inter", color=PLOT_TEXT, weight=700))
     st.plotly_chart(fig_at, use_container_width=True)
-
-    # Footnote for partial months
-    if _at_monthly_view["_partial"].any():
-        _partial_labels_view = [
-            lbl.replace(" *", "")
-            for lbl, p in zip(_at_monthly_view["_label"], _at_monthly_view["_partial"]) if p
-        ]
-        st.markdown(
-            f'<div style="font-size:0.85rem;color:#6b7280;margin-top:-6px;margin-bottom:14px;'
-            f'font-family:Inter,sans-serif;line-height:1.5;">'
-            f'<b style="color:#92400e;">*</b> &nbsp;Months marked with an asterisk have '
-            f'fewer reporting buildings than typical and should be read as partial data, '
-            f'not lower consumption. Affected: {", ".join(_partial_labels_view)}. '
-            f'See the <b>Data Integrity</b> tab for the full coverage breakdown.'
-            f'</div>',
-            unsafe_allow_html=True)
 
     if not selected_weeks:
         st.markdown(
@@ -1161,6 +1292,10 @@ if active_tab == "Overview":
 
         # Campus KPIs
         st.markdown('<div class="sec-label">Consumption During Selected Periods — All Buildings</div>', unsafe_allow_html=True)
+        # Pass df_all so Monthly/Yearly avg-power uses the actual data span
+        # (matches the all-time Campus Energy card). Without df_all, "all years
+        # selected" would divide by full calendar years (1096 days) instead of
+        # the actual ~483 days of data, producing a misleadingly low Avg Power.
         _sel_days = days_in_period(sorted_sel, time_filter, df_all)
         k1_label = (f"Energy During — {period_label(sorted_sel[0])}"
                     if len(sorted_sel) == 1
@@ -1193,6 +1328,7 @@ if active_tab == "Overview":
         max_periods = 4
         chart_weeks = sorted_sel[-max_periods:]
         n_periods   = len(chart_weeks)
+        # Single week → show that week's date range; multiple → just "All Buildings"
         if n_periods == 1:
             chart_title = f"All Buildings — {period_label(chart_weeks[0])}"
         else:
@@ -1252,14 +1388,19 @@ if active_tab == "Overview":
             fig_all.update_xaxes(tickfont=dict(size=17, color="#111827", family="Inter", weight=700))
             st.plotly_chart(fig_all, use_container_width=True)
 
-        # Building detail
+        # Building detail — has BOTH an in-page selector and a sidebar selector.
+        # Both control the same view; the in-page one defaults to whatever the
+        # sidebar shows, and changing either updates the page.
         st.markdown('<div class="sec-label">Building Detail — Select a Building to View Details</div>', unsafe_allow_html=True)
 
+        # Build dropdown from ALL buildings present in ANY selected period,
+        # sorted by total kWh across all selected periods (highest first).
         bld_kwh_all_sel = (by_bld[by_bld["week"].isin(sorted_sel)]
                            .groupby("building")["kWh"].sum()
                            .sort_values(ascending=False)
                            .reset_index())
         bld_order = bld_kwh_all_sel["building"].tolist()
+        # Metric cards still reflect the latest selected week (0 if no data that week)
         bld_kwh_lkp = (by_bld[by_bld["week"] == latest_week]
                        .set_index("building")["kWh"].to_dict())
 
@@ -1267,6 +1408,7 @@ if active_tab == "Overview":
             st.info("No buildings available — no data in the selected period.")
             st.stop()
 
+        # Default the in-page picker to the sidebar's choice when possible
         _default_idx = 0
         if _sidebar_sel_bld and _sidebar_sel_bld in bld_order:
             _default_idx = bld_order.index(_sidebar_sel_bld)
@@ -1287,6 +1429,9 @@ if active_tab == "Overview":
         b_cur  = (by_bld[(by_bld["building"] == sel_bld) &
                          (by_bld["week"].isin(sorted_sel))]["kWh"].sum())
         b_cost = b_cur * ENERGY_RATE
+        # Short display name for the metric card only — prevents long names from
+        # wrapping to a second line in Streamlit's uppercase metric label.
+        # Does NOT affect the dropdown, trend chart title, or alert banners.
         _bld_short = "Wine Spectator LC" if sel_bld == "Wine Spectator Learning Ctr" else sel_bld
 
         bm1_label = (f"{_bld_short} — {period_label(sorted_sel[0])}"
@@ -1295,6 +1440,11 @@ if active_tab == "Overview":
         bm2_label = (f"Estimated Cost (@ ${ENERGY_RATE}/kWh)"
                      if len(sorted_sel) == 1
                      else f"Combined Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
+        # Per-building Avg Power: scope days to this building's actual data
+        # span within the selected periods. A building that started reporting
+        # late should not be averaged across the full campus span — that would
+        # understate its real power draw. Falls back to campus span if the
+        # building has no data in the period.
         _b_scope = df_all[df_all["building"] == sel_bld]
         _b_co2_kg = b_cur * EMISSION_FACTOR
         _b_co2_t  = _b_co2_kg / 1000.0
@@ -1331,6 +1481,7 @@ if active_tab == "Overview":
         if len(bld_trend) >= 1:
             bld_trend["label"] = bld_trend["week"].apply(period_label)
             bld_trend["disp"]  = bld_trend["kWh"] / 1000
+            # Fix: bars with 0 kWh must show as exactly 0 (no rendering artefact)
             bld_trend["disp"] = bld_trend["disp"].clip(lower=0.0)
             fig_trend = go.Figure(go.Bar(
                 x=bld_trend["label"], y=bld_trend["disp"],
@@ -1348,7 +1499,7 @@ if active_tab == "Overview":
             fig_trend.update_xaxes(tickfont=dict(size=16, family="Inter", color=PLOT_TEXT, weight=700))
             st.plotly_chart(fig_trend, use_container_width=True)
 
-        # Total campus energy
+        # Total campus energy — selected periods
         if len(sorted_sel) == 1:
             _campus_title = f"Total Campus Energy — {period_label(sorted_sel[0])}"
         else:
@@ -1377,7 +1528,9 @@ if active_tab == "Overview":
         st.plotly_chart(fig_campus, use_container_width=True)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # LEADERBOARD TAB
+# ══════════════════════════════════════════════════════════════════════════════
 elif active_tab == "Leaderboard":
 
     if not selected_weeks:
@@ -1437,7 +1590,11 @@ elif active_tab == "Leaderboard":
     for b in all_pvt.columns:
         s, k = all_pvt[b].values, 0
         for i in range(len(s) - 1, 0, -1):
-            # Treat any 0 in the comparison pair as missing data
+            # A 0-kWh week is a meter outage, not a real reduction. Without
+            # this guard, a building going offline would falsely register a
+            # reduction streak (0 < anything_positive) and even climb the
+            # leaderboard. Treat any 0 in the comparison pair as "data
+            # missing" and stop counting.
             if s[i] == 0 or s[i - 1] == 0:
                 break
             if s[i] < s[i - 1]: k += 1
@@ -1574,7 +1731,9 @@ elif active_tab == "Leaderboard":
 
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # THERMAL TAB
+# ══════════════════════════════════════════════════════════════════════════════
 elif active_tab == "Thermal":
 
     st.title("🔥 Thermal Energy Usage")
@@ -1584,7 +1743,16 @@ elif active_tab == "Thermal":
         'Thermal includes heating hot water and chilled water cooling loops.</p>',
         unsafe_allow_html=True)
 
-    # Buildings with at least one active thermal sensor
+    # ── Thermal classification ───────────────────────────────────────────────
+    # The thermal_kWh column is pre-computed per (week, building) from the raw
+    # CSVs — it contains ONLY energy from BTU/kBTU/MBTU sensors (heating hot
+    # water + chilled water loops). This is the correct sensor-level split and
+    # avoids misattributing a building's electric usage to thermal just because
+    # the building also has thermal meters (e.g. Green Music Center).
+
+    # Buildings that have at least one thermal sensor currently active —
+    # uses dynamic statuses so this filter reflects what's reporting now,
+    # not the original hand-curated list.
     _thermal_buildings = set()
     _dyn_st_for_th = compute_sensor_statuses(df_all)
     for _b, _sid, _util, _unit, _orig_st, _orig_notes in SENSOR_REGISTRY:
@@ -1593,7 +1761,7 @@ elif active_tab == "Thermal":
             if _live_st == "OK":
                 _thermal_buildings.add(_b)
 
-    # All-time monthly thermal data
+    # All-time monthly thermal data — uses thermal_kWh column directly
     _th_at = df_all.dropna(subset=["_wstart"]).copy()
     _th_at["_month"] = _th_at["_wstart"].dt.to_period("M")
 
@@ -1631,8 +1799,9 @@ elif active_tab == "Thermal":
          "note":  "Heating + cooling vs total"},
     ], columns=3)
 
-    # Stacked bar chart: thermal vs non-thermal by month
+    # Stacked bar chart — thermal vs non-thermal by month
     st.markdown('<div class="sec-label">Monthly Energy Split — Thermal vs Electric</div>', unsafe_allow_html=True)
+    # Range toggle to keep the chart legible with many months of history.
     if len(_th_merged) > 12:
         _th_range_choice = st.radio(
             "thermal_split_range",
@@ -1645,6 +1814,7 @@ elif active_tab == "Thermal":
         _th_merged_view = _th_merged
 
     _n_th_months = len(_th_merged_view)
+    # Same crowding-aware scaling as Overview's all-time chart.
     _th_chart_height = max(380, min(560, 340 + _n_th_months * 6))
     _th_tick_angle   = -45 if _n_th_months > 10 else 0
     _th_tick_size    = 14 if _n_th_months <= 10 else (12 if _n_th_months <= 18 else 10)
@@ -1674,7 +1844,10 @@ elif active_tab == "Thermal":
     fig_th_stack.update_yaxes(tickfont=dict(size=14, family="Inter", color=PLOT_TEXT, weight=700))
     st.plotly_chart(fig_th_stack, use_container_width=True)
 
-    # All Buildings: Thermal Energy
+    # ── All Buildings — Thermal Energy ───────────────────────────────────────
+    # Mirrors the Overview "All Buildings" chart: horizontal bars per building,
+    # grouped by selected period (max 4 most recent), one color per period.
+    # Uses thermal_kWh instead of total kWh.
     if selected_weeks:
         _th_max_periods = 4
         _th_chart_weeks = sorted_sel[-_th_max_periods:]
@@ -1685,6 +1858,7 @@ elif active_tab == "Thermal":
             _th_chart_title = "All Buildings — Thermal Energy"
         st.markdown(f'<div class="sec-label">{_th_chart_title}</div>', unsafe_allow_html=True)
 
+        # Per-(week, building) thermal kWh — analogous to `by_bld` in Overview
         _th_by_bld = (df_view[df_view["week"].isin(_th_chart_weeks)]
                       .groupby(["week", "building"])["thermal_kWh"].sum()
                       .reset_index())
@@ -1694,6 +1868,7 @@ elif active_tab == "Thermal":
         elif _th_n_periods == 1:
             _ldf = (_th_by_bld[_th_by_bld["week"] == _th_chart_weeks[0]]
                     .sort_values("thermal_kWh", ascending=True).copy())
+            # Hide buildings with no thermal data so the chart is readable
             _ldf = _ldf[_ldf["thermal_kWh"] > 0]
             _ldf["disp"] = _ldf["thermal_kWh"] / 1000
             fig_th_all = go.Figure(go.Bar(
@@ -1713,6 +1888,7 @@ elif active_tab == "Thermal":
             st.plotly_chart(fig_th_all, use_container_width=True)
         else:
             _th_palette = ["#ec4899", "#3b82f6", "#6366f1", C_SLATE]
+            # Buildings that reported any thermal energy across selected periods
             _th_all_blds = (_th_by_bld.groupby("building")["thermal_kWh"].sum()
                             .loc[lambda s: s > 0].index.tolist())
             _th_latest_kwh = (_th_by_bld[_th_by_bld["week"] == _th_chart_weeks[-1]]
@@ -1750,8 +1926,15 @@ elif active_tab == "Thermal":
         st.markdown('<div class="sec-label">All Buildings — Thermal Energy</div>', unsafe_allow_html=True)
         st.info("👈 Select a time period from the sidebar to see thermal energy by building.")
 
-    # Building-level thermal breakdown
+    # If a time period is selected, show building-level thermal breakdown
     if selected_weeks:
+        # ── Thermal Building Detail — sidebar + in-page dropdowns, synced ───
+        # Both the sidebar's Building Detail dropdown AND an in-page selector
+        # control the view. Changing EITHER updates the chart immediately.
+        # Sync mechanism: when the sidebar value changes between runs, we push
+        # the new value into the in-page picker's session_state BEFORE the
+        # widget renders. This bypasses Streamlit's caching of the widget's
+        # last-clicked value (which was the bug in the previous version).
         st.markdown('<div class="sec-label">Thermal Breakdown — Select a Building to View Details</div>', unsafe_allow_html=True)
 
         _th_sel = df_view[df_view["week"].isin(sorted_sel)].copy()
@@ -1764,21 +1947,26 @@ elif active_tab == "Thermal":
         if not _th_bld_order:
             st.info("No thermal sensor data available for the selected period(s).")
         else:
+            # Session-state keys for the picker and the last-seen sidebar value
             _PICKER_KEY  = "thermal_bld_picker"
             _LAST_SB_KEY = "_th_last_sidebar_bld"
 
-            # Sync sidebar to in-page picker
+            # 1) If the sidebar value changed since last run AND the new value
+            #    is in our thermal options, push it into the picker's state.
             _prev_sidebar = st.session_state.get(_LAST_SB_KEY)
             if _prev_sidebar != _sidebar_sel_bld:
                 if _sidebar_sel_bld in _th_bld_order:
                     st.session_state[_PICKER_KEY] = _sidebar_sel_bld
                 st.session_state[_LAST_SB_KEY] = _sidebar_sel_bld
 
-            # Drop stale picker value
+            # 2) If the picker's cached value is stale (e.g. user changed time
+            #    range and the previously-selected building no longer has any
+            #    thermal data), drop it so Streamlit defaults to the first option.
             if _PICKER_KEY in st.session_state and st.session_state[_PICKER_KEY] not in _th_bld_order:
                 del st.session_state[_PICKER_KEY]
 
-            # Default value
+            # 3) If nothing is set yet, prefer sidebar pick (when valid),
+            #    otherwise default to the largest thermal contributor.
             if _PICKER_KEY not in st.session_state:
                 st.session_state[_PICKER_KEY] = (
                     _sidebar_sel_bld if _sidebar_sel_bld in _th_bld_order
@@ -1792,6 +1980,7 @@ elif active_tab == "Thermal":
                 format_func=lambda b: b,
                 label_visibility="collapsed")
 
+            # Per-building totals across selected periods — thermal kWh only
             _b_th_cur = float(_th_sel[(_th_sel["building"] == _th_sel_bld)]["thermal_kWh"].sum())
             _b_th_cost = _b_th_cur * ENERGY_RATE
             _bld_short_th = "Wine Spectator LC" if _th_sel_bld == "Wine Spectator Learning Ctr" else _th_sel_bld
@@ -1802,6 +1991,8 @@ elif active_tab == "Thermal":
             _tbm2_label = (f"Estimated Thermal Cost (@ ${ENERGY_RATE}/kWh)"
                            if len(sorted_sel) == 1
                            else f"Combined Thermal Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
+            # Same scoping as Overview's per-building Avg Power: use this
+            # building's actual data span within the selected periods.
             _th_b_scope = df_all[df_all["building"] == _th_sel_bld]
             _bth_co2_kg = _b_th_cur * EMISSION_FACTOR
             _bth_co2_t  = _bth_co2_kg / 1000.0
@@ -1853,7 +2044,10 @@ elif active_tab == "Thermal":
                 _fig_bld_th.update_xaxes(tickfont=dict(size=16, family="Inter", color=PLOT_TEXT, weight=700))
                 st.plotly_chart(_fig_bld_th, use_container_width=True)
 
-        # Total Campus Thermals
+        # ── Total Campus Thermals ────────────────────────────────────────────
+        # Same layout as Overview's "Total Campus Energy" block, but for thermal.
+        # Title is dynamic: single-week shows that week's range; multi-week shows
+        # "All Selected Periods".
         _th_campus_week = (
             _th_sel.groupby("week")["thermal_kWh"].sum()
             .reset_index().rename(columns={"thermal_kWh": "kWh"})
@@ -1881,6 +2075,9 @@ elif active_tab == "Thermal":
             fig_th_trend.update_layout(**plot_base(height=280), bargap=0.45, yaxis_title="MWh (Thermal)")
             fig_th_trend.update_yaxes(range=[0, _th_yt])
             st.plotly_chart(fig_th_trend, use_container_width=True)
+    # NOTE: when selected_weeks is empty, the top-of-tab "All Buildings —
+    # Thermal Energy" block already shows a single "select a time period"
+    # notification. We intentionally do NOT duplicate it here.
 
     st.markdown(
         '<div style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:12px;">'
@@ -1890,7 +2087,9 @@ elif active_tab == "Thermal":
         '</div>', unsafe_allow_html=True)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 # DATA INTEGRITY TAB
+# ══════════════════════════════════════════════════════════════════════════════
 elif active_tab == "DataIntegrity":
 
     st.markdown(
@@ -1907,7 +2106,10 @@ elif active_tab == "DataIntegrity":
         'Full sensor registry, verified data, gap analysis, and deployment notes.</p>',
         unsafe_allow_html=True)
 
-    # Known data-quality issue: Physical Education meter (May–Aug 2025)
+    # ── Known data-quality issue: Physical Education meter (May–Aug 2025) ──
+    # Highlighted near the top so anyone reading the DI report sees the
+    # documented issue first. The Building Data Gaps table below repeats
+    # this in row form, but the summary card explains the cause.
     st.markdown(
         '<div style="background:#fffbeb;border:1px solid #fcd34d;'
         'border-left:5px solid #f59e0b;border-radius:12px;padding:18px 22px;'
@@ -1945,14 +2147,8 @@ elif active_tab == "DataIntegrity":
     _di_earliest = all_weeks[0]
     wdf = df_all[df_all["week"] == _di_latest].sort_values("kWh", ascending=False)
 
-    _di_lm = df_all.attrs.get("last_modified")
-    if _di_lm is not None:
-        _di_cap = pd.Timestamp(_di_lm.date())
-    else:
-        _di_cap = pd.Timestamp(datetime.datetime.now().date())
-
     st.markdown(
-        f'<div class="sec-label">Verified Data — {week_label(_di_latest, cap_at=_di_cap)}'
+        f'<div class="sec-label">Verified Data — {week_label(_di_latest)}'
         + (' <span style="color:#3b82f6;font-size:0.75rem;font-weight:700;'
            'background:#dbeafe;border-radius:4px;padding:2px 8px;margin-left:6px;">'
            '⚡ FROM RAW CSV</span>' if _di_latest in _raw_weeks else '') +
@@ -1984,97 +2180,14 @@ elif active_tab == "DataIntegrity":
 
     st.markdown(
         f'<div style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:8px;margin-bottom:4px;">'
-        f'Showing most recent week: {week_label(_di_latest, cap_at=_di_cap)}. '
+        f'Showing most recent week: {week_label(_di_latest)}. '
         f'kWh includes both electric meters and thermal energy sensors (heating &amp; cooling loops) '
         f'converted to kWh. Gas and water meters currently have no data available.'
         f'</div>', unsafe_allow_html=True)
 
-    # Monthly Data Coverage
-    st.markdown('<div class="sec-label">Monthly Data Coverage</div>',
-                unsafe_allow_html=True)
-    st.markdown(
-        '<p style="font-size:0.95rem;color:#6b7280;margin-top:-2px;line-height:1.5;">'
-        'Per-month breakdown of how many buildings reported and how many weeks '
-        'were covered. Months marked <b style="color:#92400e;">Partial</b> have '
-        'fewer reporting buildings than typical and contribute artificially low '
-        'totals to the campus chart.'
-        '</p>', unsafe_allow_html=True)
-
-    _cov = df_all.dropna(subset=["_wstart"]).copy()
-    _cov["_month"] = _cov["_wstart"].dt.to_period("M")
-    _cov_agg = (
-        _cov[_cov["kWh"] > 0]
-        .groupby("_month")
-        .agg(_n_bld=("building", "nunique"),
-             _n_weeks=("week", "nunique"),
-             _kwh=("kWh", "sum"))
-        .reset_index()
-        .sort_values("_month")
-    )
-    _cov_max_bld    = int(_cov_agg["_n_bld"].max()) if not _cov_agg.empty else 0
-    _cov_threshold  = max(1, int(_cov_max_bld * 0.7))
-
-    def _verdict_for_row(n_bld, n_weeks):
-        if n_bld == 0:
-            return ("None", "#dc2626", "#fee2e2")
-        if n_bld < _cov_threshold or n_weeks < 3:
-            return ("Partial", "#92400e", "#fef3c7")
-        return ("Complete", "#15803d", "#dcfce7")
-
-    cov_tbl = ('<table class="di-table"><thead><tr>'
-               '<th>Month</th>'
-               '<th style="text-align:right;">Buildings Reporting</th>'
-               '<th style="text-align:right;">Weeks Covered</th>'
-               '<th style="text-align:right;">Total Energy (MWh)</th>'
-               '<th>Status</th>'
-               '</tr></thead><tbody>')
-    for _, r in _cov_agg.iterrows():
-        _label_m = r["_month"].to_timestamp().strftime("%b %Y")
-        _verdict, _verdict_color, _verdict_bg = _verdict_for_row(int(r["_n_bld"]), int(r["_n_weeks"]))
-        _badge = (f'<span style="background:{_verdict_bg};color:{_verdict_color};'
-                  f'font-weight:700;padding:2px 10px;border-radius:6px;font-size:0.85rem;'
-                  f'font-family:Inter,sans-serif;">{_verdict}</span>')
-        cov_tbl += (f'<tr><td><b>{_label_m}</b></td>'
-                    f'<td style="text-align:right;">{int(r["_n_bld"])} of {_cov_max_bld}</td>'
-                    f'<td style="text-align:right;">{int(r["_n_weeks"])}</td>'
-                    f'<td style="text-align:right;">{r["_kwh"]/1000:,.1f}</td>'
-                    f'<td>{_badge}</td></tr>')
-    cov_tbl += '</tbody></table>'
-    st.markdown(f'<div class="card" style="overflow-x:auto">{cov_tbl}</div>',
-                unsafe_allow_html=True)
-
-    _n_complete = sum(1 for _, r in _cov_agg.iterrows()
-                      if _verdict_for_row(int(r["_n_bld"]), int(r["_n_weeks"]))[0] == "Complete")
-    _n_partial_cov = sum(1 for _, r in _cov_agg.iterrows()
-                         if _verdict_for_row(int(r["_n_bld"]), int(r["_n_weeks"]))[0] == "Partial")
-    _total_months = len(_cov_agg)
-    _complete_pct = (_n_complete / _total_months * 100) if _total_months else 0
-
-    cv1, cv2, cv3 = st.columns(3)
-    cv1.markdown(
-        f'<div class="card"><div class="card-title">📅 Months in Database</div>'
-        f'<div style="font-size:1.6rem;font-weight:800;color:#111827;letter-spacing:-0.02em;">'
-        f'{_total_months}</div>'
-        f'<div style="font-size:0.85rem;color:#6b7280;margin-top:2px;">'
-        f'Earliest data point: {_cov_agg.iloc[0]["_month"].to_timestamp().strftime("%b %Y") if not _cov_agg.empty else "—"}'
-        f'</div></div>', unsafe_allow_html=True)
-    cv2.markdown(
-        f'<div class="card"><div class="card-title">✅ Complete Months</div>'
-        f'<div style="font-size:1.6rem;font-weight:800;color:#15803d;letter-spacing:-0.02em;">'
-        f'{_n_complete} <span style="font-size:1rem;color:#6b7280;font-weight:600;">'
-        f'({_complete_pct:.0f}%)</span></div>'
-        f'<div style="font-size:0.85rem;color:#6b7280;margin-top:2px;">'
-        f'Full-fleet reporting; year-over-year comparable.'
-        f'</div></div>', unsafe_allow_html=True)
-    cv3.markdown(
-        f'<div class="card"><div class="card-title">⚠️ Partial Months</div>'
-        f'<div style="font-size:1.6rem;font-weight:800;color:#92400e;letter-spacing:-0.02em;">'
-        f'{_n_partial_cov}</div>'
-        f'<div style="font-size:0.85rem;color:#6b7280;margin-top:2px;">'
-        f'Fewer reporting buildings than typical; treat totals as lower bound.'
-        f'</div></div>', unsafe_allow_html=True)
-
-    # Building data status chart
+    # Building data status chart — uses dynamically computed statuses so the
+    # green/amber/red verdict reflects what the weekly data actually shows
+    # right now, not a hand-curated list that drifts over time.
     _dyn_statuses_for_chart = compute_sensor_statuses(df_all)
     _bld_sensor_statuses = defaultdict(list)
     for _b, _sid, _util, _unit, _orig_st, _orig_notes in SENSOR_REGISTRY:
@@ -2103,7 +2216,12 @@ elif active_tab == "DataIntegrity":
     _n_nodata  = sum(1 for d in _bld_chart_data if d["label"] == "No Data")
     _partial_names = [d["building"] for d in _bld_chart_data if d["label"] == "Partial Data"]
 
-    # Building Data Gaps
+    # ── Building Data Gaps (dynamic) ──────────────────────────────────────
+    # Detect months where each building reported NO data despite having
+    # data in earlier AND later months — a true "gap" rather than a
+    # not-yet-instrumented period or a not-yet-reported recent month.
+    # Known gaps (with cause) get an explanatory note; unknown gaps get
+    # the neutral "meter offline" framing so we never claim more than we know.
     st.markdown('<div class="sec-label">Building Data Gaps</div>',
                 unsafe_allow_html=True)
     st.markdown(
@@ -2113,6 +2231,8 @@ elif active_tab == "DataIntegrity":
         'and isn\'t in the database.'
         '</p>', unsafe_allow_html=True)
 
+    # Hard-coded explanations for gaps where we DO know the cause. Anything
+    # not in this dict gets a neutral "meter offline" message.
     KNOWN_GAP_CAUSES = {
         ("Physical Education", "2025-05"):
             "Unit mismatch — meter reported watt-hours labeled as kWh; readings removed during data quality review (May–Aug 2025).",
@@ -2128,7 +2248,7 @@ elif active_tab == "DataIntegrity":
     _gap_df = df_all.dropna(subset=["_wstart"]).copy()
     _gap_df["_month"] = _gap_df["_wstart"].dt.to_period("M")
 
-    gap_rows = []
+    gap_rows = []  # list of (building, month_str, cause)
     for _bld in sorted(_gap_df["building"].unique()):
         _bld_df = _gap_df[(_gap_df["building"] == _bld) & (_gap_df["kWh"] > 0)]
         if _bld_df.empty:
@@ -2136,6 +2256,7 @@ elif active_tab == "DataIntegrity":
         _months = sorted(_bld_df["_month"].unique())
         if len(_months) < 2:
             continue
+        # All months in this building's operational range:
         _all_months_range = pd.period_range(_months[0], _months[-1], freq="M")
         _present = set(_months)
         for _m in _all_months_range:
@@ -2156,6 +2277,9 @@ elif active_tab == "DataIntegrity":
             '</div></div>',
             unsafe_allow_html=True)
     else:
+        # Group by building + cause so consecutive months under the same
+        # explanation render as one "May 2025 – Aug 2025" range instead of
+        # four separate rows.
         from itertools import groupby
         by_bld = defaultdict(list)
         for _b, _m, _c in gap_rows:
@@ -2168,6 +2292,7 @@ elif active_tab == "DataIntegrity":
                    '</tr></thead><tbody>')
         for _b in sorted(by_bld):
             rows_for_bld = sorted(by_bld[_b], key=lambda x: x[0])
+            # Group adjacent months sharing the same cause
             groups = []
             for _, run in groupby(enumerate(rows_for_bld),
                                   key=lambda iv: (
@@ -2184,6 +2309,7 @@ elif active_tab == "DataIntegrity":
                     months_label = (pd.Period(m_start).to_timestamp().strftime("%b %Y")
                                     + " – "
                                     + pd.Period(m_end).to_timestamp().strftime("%b %Y"))
+                # Color-code the cause: amber for known, gray for neutral
                 _is_known = "data quality review" in cause or "Unit mismatch" in cause
                 _row_bg = "#fffbeb" if _is_known else "#ffffff"
                 _icon   = "⚠️" if _is_known else "🔇"
@@ -2195,6 +2321,7 @@ elif active_tab == "DataIntegrity":
         st.markdown(f'<div class="card" style="overflow-x:auto">{gap_tbl}</div>',
                     unsafe_allow_html=True)
 
+        # Legend below the table
         st.markdown(
             '<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;'
             'font-family:Inter,sans-serif;font-size:0.85rem;color:#6b7280;">'
@@ -2272,13 +2399,7 @@ elif active_tab == "DataIntegrity":
     st.markdown('<div class="sec-label">Data Summary</div>', unsafe_allow_html=True)
 
     _start_dt  = pd.to_datetime(_di_earliest)
-    _last_mod_di = df_all.attrs.get("last_modified")
-    if _last_mod_di is not None:
-        _end_dt = pd.Timestamp(_last_mod_di.date())
-    else:
-        _week_end_dt = pd.to_datetime(_di_latest) + pd.Timedelta(days=6)
-        _today_dt    = pd.Timestamp(datetime.datetime.now().date())
-        _end_dt      = min(_week_end_dt, _today_dt)
+    _end_dt    = pd.to_datetime(_di_latest) + pd.Timedelta(days=6)
     _start_str = _start_dt.strftime("%B %d, %Y") if _start_dt else _di_earliest
     _end_str   = _end_dt.strftime("%B %d, %Y")   if _end_dt   else _di_latest
     _now_str   = datetime.datetime.now().strftime("%B %d, %Y  —  %I:%M %p")
@@ -2314,9 +2435,10 @@ elif active_tab == "DataIntegrity":
         f'<div style="margin:4px 0 0;"><span style="font-size:0.9rem;font-weight:500;color:#78350f;font-family:Inter,sans-serif;">{_partial_note}</span></div>'
         f'</div>', unsafe_allow_html=True)
 
-    # Utility coverage
+    # Utility coverage — DYNAMIC status computed from actual weekly_energy.csv data
     st.markdown('<div class="sec-label">Utility Coverage</div>', unsafe_allow_html=True)
 
+    # Compute per-utility coverage live from df_all
     _dyn = df_all.copy()
     _dyn["electric_kWh"] = (_dyn["kWh"] - _dyn["thermal_kWh"]).clip(lower=0)
 
@@ -2337,6 +2459,7 @@ elif active_tab == "DataIntegrity":
     _wat_active  = sorted([b for b, v in _wat_by_bld.items() if v > 0])
     _wat_total   = float(_dyn["water_gallon"].sum())
 
+    # Pull registered-meter counts from SENSOR_REGISTRY for "A of B" framing
     _reg_elec = [r for r in SENSOR_REGISTRY if r[2] == "Electric"]
     _reg_th   = [r for r in SENSOR_REGISTRY if r[2] == "Thermal"]
     _reg_gas  = [r for r in SENSOR_REGISTRY if r[2] == "Gas"]
