@@ -441,7 +441,35 @@ SENSOR_REGISTRY = [
 ]
 
 
-# Map utility-type to the row's contribution
+# BUILDING SQUARE FOOTAGE (approximate gross sq ft; update when actuals are available)
+BUILDING_SQFT = {
+    "Green Music Center":          128_000,
+    "Nichols Hall":                 52_000,
+    "Rachel Carson Hall":           72_000,
+    "Wine Spectator Learning Ctr":  30_000,
+    "Student Center":               85_000,
+    "Physical Education":          120_000,
+    "Ives Hall":                    65_000,
+    "Campus Misc":                  None,    # aggregate — no single sqft
+    "Art Building":                 28_000,
+    "Boiler Plant":                  8_000,
+    "Darwin Hall":                  55_000,
+    "ETC":                          20_000,
+    "Salazar Hall":                 90_000,
+    "Schulz Info Center":           82_000,
+    "Stevenson Hall":               48_000,
+    "Student Health Center":        22_000,
+}
+
+
+def fmt_cost_per_sqft(cost: float, sqft) -> str:
+    """Format a $/sqft value, or return N/A when sqft is unknown."""
+    if sqft is None or sqft <= 0 or cost is None:
+        return "N/A"
+    return f"${cost / sqft:.4f}"
+
+
+
 def _row_contribution(row, utility: str) -> float:
     """Return how much of `utility` a single df_all row carries."""
     if utility == "Electric":
@@ -566,6 +594,8 @@ def fmt_kwh(v):
 
 
 def fmt_cost(v):
+    if v is None:
+        return "N/A"
     return f"${abs(v):,.0f}"
 
 
@@ -580,7 +610,9 @@ def fmt_power(kwh: float, days: float) -> str:
 
 
 def fmt_co2(kwh: float, factor: float) -> str:
-    """CO2 in kg and metric tons."""
+    """CO2 in kg and metric tons. Returns N/A when data is unavailable."""
+    if kwh is None or kwh == 0.0:
+        return "N/A"
     kg = kwh * factor
     tons = kg / 1000.0
     return f"{kg:,.0f} kg ({tons:,.0f} t)"
@@ -845,8 +877,8 @@ section[data-testid="stSidebar"] .sidebar-title {
 
     st.markdown("---")
 
-    # COST
-    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Cost</p>', unsafe_allow_html=True)
+    # COST PROJECTION
+    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Cost Projection</p>', unsafe_allow_html=True)
     st.markdown('<p style="color:#a3bcd0;font-size:1.0rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;">Estimated Cost Rate ($/kWh)</p>', unsafe_allow_html=True)
     COST_RATE_OPTIONS = {
         "$0.10 / kWh": 0.10,
@@ -988,6 +1020,34 @@ section[data-testid="stSidebar"] .sidebar-title {
         f'{_latest_label} {_latest_day_display}</div>',
         unsafe_allow_html=True)
 
+    st.markdown("---")
+
+    # CONTACT
+    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Contact</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:0.92rem;color:#c8d9ea;line-height:1.9;font-family:Inter,sans-serif;">'
+        '<b style="color:#ffffff;">Project Lead:</b> [Name]<br>'
+        '<b style="color:#ffffff;">Email:</b> [email@example.edu]<br>'
+        '<b style="color:#ffffff;">Department:</b> [Department Name]<br>'
+        '<b style="color:#ffffff;">Institution:</b> Sonoma State University<br>'
+        '</div>',
+        unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # EDUCATIONAL DISCLAIMER
+    st.markdown(
+        '<div style="background:rgba(255,255,255,0.07);border-radius:8px;'
+        'padding:10px 14px;font-size:0.82rem;color:#a3bcd0;line-height:1.6;'
+        'font-family:Inter,sans-serif;border:1px solid rgba(255,255,255,0.1);">'
+        '📚 <b style="color:#c8d9ea;">Educational Project</b><br>'
+        'This dashboard was developed as part of an academic data engineering '
+        'project at Sonoma State University. Cost and CO₂ figures are estimates '
+        'for educational purposes only and should not be used for billing or '
+        'regulatory reporting.'
+        '</div>',
+        unsafe_allow_html=True)
+
 
 # SELECTION STATE
 if selected_weeks:
@@ -1010,7 +1070,7 @@ else:
     latest_week       = None
     by_bld            = pd.DataFrame(columns=["week", "building", "kWh"])
     campus_total_sel  = 0.0
-    campus_total_cost = 0.0
+    campus_total_cost = None   # N/A when no period selected
     prev_week         = None
     campus_prev       = None
     pct_change        = None
@@ -1024,7 +1084,16 @@ if active_tab == "Overview":
         use_container_width=True
     )
 
-    
+    st.markdown(
+        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;'
+        'border-radius:0 8px 8px 0;padding:10px 16px;font-size:0.92rem;color:#1e40af;'
+        'font-weight:500;margin-bottom:4px;font-family:Inter,sans-serif;">'
+        '📚 <b>Educational Project</b> — This dashboard was developed as part of an academic '
+        'data engineering project at Sonoma State University. All cost projections and CO₂ '
+        'estimates are for educational purposes only.'
+        '</div>',
+        unsafe_allow_html=True)
+
     # All-time campus energy chart
     _at = df_all.dropna(subset=["_wstart"]).copy()
     _at["_month"] = _at["_wstart"].dt.to_period("M")
@@ -1066,6 +1135,10 @@ if active_tab == "Overview":
     _co2_kg = _at_total_kwh * EMISSION_FACTOR
     _co2_t  = _co2_kg / 1000.0
     _at_mwh = _at_total_kwh / 1000.0
+    # Average cost per sq ft across buildings with known sqft
+    _sqft_total_at   = sum(v for v in BUILDING_SQFT.values() if v is not None)
+    _cost_per_sqft_at = (f"${_at_total_cost / _sqft_total_at:.4f}"
+                         if _sqft_total_at > 0 else "N/A")
     render_kpis([
         {"label": "Total Energy Consumed",
          "value": fmt_kwh(_at_total_kwh),
@@ -1081,6 +1154,9 @@ if active_tab == "Overview":
         {"label": "CO₂ Emitted",
          "value": f"{_co2_t:,.0f} t",
          "note":  f"{_co2_kg:,.0f} kg"},
+        {"label": "Avg Cost per Sq Ft",
+         "value": _cost_per_sqft_at,
+         "note":  "Across buildings with known area"},
     ])
     st.markdown(
         '<p style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:-4px;line-height:1.4;">'
@@ -1165,8 +1241,8 @@ if active_tab == "Overview":
         k1_label = (f"Energy During — {period_label(sorted_sel[0])}"
                     if len(sorted_sel) == 1
                     else f"Energy During — {len(sorted_sel)} Periods Combined")
-        _sel_co2_kg = campus_total_sel * EMISSION_FACTOR
-        _sel_co2_t  = _sel_co2_kg / 1000.0
+        _sel_co2_kg = campus_total_sel * EMISSION_FACTOR if campus_total_sel > 0 else None
+        _sel_co2_t  = (_sel_co2_kg / 1000.0) if _sel_co2_kg is not None else None
         _sel_mwh    = campus_total_sel / 1000.0
         render_kpis([
             {"label": k1_label,
@@ -1175,19 +1251,86 @@ if active_tab == "Overview":
                        if campus_total_sel >= 1_000_000
                        else None)},
             {"label": f"Estimated Energy Cost (@ ${ENERGY_RATE}/kWh)",
-             "value": (f"${campus_total_cost/1_000_000:.2f}M"
-                       if campus_total_cost >= 1_000_000
-                       else fmt_cost(campus_total_cost)),
+             "value": ("N/A" if campus_total_cost is None
+                       else (f"${campus_total_cost/1_000_000:.2f}M"
+                             if campus_total_cost >= 1_000_000
+                             else fmt_cost(campus_total_cost))),
              "note":  (fmt_cost(campus_total_cost)
-                       if campus_total_cost >= 1_000_000
+                       if campus_total_cost is not None and campus_total_cost >= 1_000_000
                        else None)},
             {"label": "Average Power",
              "value": fmt_power(campus_total_sel, _sel_days),
              "note":  "Energy per hour"},
             {"label": "CO₂ Emitted",
-             "value": f"{_sel_co2_t:,.1f} t" if _sel_co2_t >= 1 else f"{_sel_co2_kg:,.0f} kg",
-             "note":  (f"{_sel_co2_kg:,.0f} kg" if _sel_co2_t >= 1 else None)},
+             "value": ("N/A" if _sel_co2_t is None
+                       else (f"{_sel_co2_t:,.1f} t" if _sel_co2_t >= 1
+                             else f"{_sel_co2_kg:,.0f} kg")),
+             "note":  (f"{_sel_co2_kg:,.0f} kg"
+                       if _sel_co2_t is not None and _sel_co2_t >= 1
+                       else None)},
         ])
+
+        # Cost per Square Foot table
+        _cpf_title = (f"Cost Projection per Square Foot — {period_label(sorted_sel[0])}"
+                      if len(sorted_sel) == 1
+                      else f"Cost Projection per Square Foot — {len(sorted_sel)} Selected Periods")
+        st.markdown(f'<div class="sec-label">{_cpf_title}</div>', unsafe_allow_html=True)
+
+        _cpf_bld_kwh = (by_bld[by_bld["week"].isin(sorted_sel)]
+                        .groupby("building")["kWh"].sum()
+                        .reset_index()
+                        .sort_values("kWh", ascending=False))
+
+        _cpf_tbl = (
+            '<table class="di-table"><thead><tr>'
+            '<th>Building</th>'
+            '<th style="text-align:right;">Total kWh</th>'
+            f'<th style="text-align:right;">Est. Cost (@ ${ENERGY_RATE}/kWh)</th>'
+            '<th style="text-align:right;">Sq Ft</th>'
+            '<th style="text-align:right;">Cost / Sq Ft</th>'
+            '</tr></thead><tbody>'
+        )
+        _cpf_total_kwh  = 0.0
+        _cpf_total_cost = 0.0
+        _cpf_total_sqft = 0
+        for _, _cpf_r in _cpf_bld_kwh.iterrows():
+            _bname   = _cpf_r["building"]
+            _bkwh    = float(_cpf_r["kWh"])
+            _bcost   = _bkwh * ENERGY_RATE
+            _bsqft   = BUILDING_SQFT.get(_bname)
+            _bcsf    = fmt_cost_per_sqft(_bcost, _bsqft)
+            _sqft_disp = f"{_bsqft:,}" if _bsqft else "—"
+            _cpf_total_kwh  += _bkwh
+            _cpf_total_cost += _bcost
+            if _bsqft:
+                _cpf_total_sqft += _bsqft
+            _cpf_tbl += (
+                f'<tr>'
+                f'<td><b>{_bname}</b></td>'
+                f'<td style="text-align:right;">{_bkwh:,.1f}</td>'
+                f'<td style="text-align:right;">${_bcost:,.0f}</td>'
+                f'<td style="text-align:right;">{_sqft_disp}</td>'
+                f'<td style="text-align:right;font-weight:700;">{_bcsf}</td>'
+                f'</tr>'
+            )
+        _cpf_avg = fmt_cost_per_sqft(_cpf_total_cost, _cpf_total_sqft if _cpf_total_sqft > 0 else None)
+        _cpf_tbl += (
+            f'<tr style="background:#f8fafc;font-weight:700;">'
+            f'<td>CAMPUS TOTAL</td>'
+            f'<td style="text-align:right;">{_cpf_total_kwh:,.1f}</td>'
+            f'<td style="text-align:right;">${_cpf_total_cost:,.0f}</td>'
+            f'<td style="text-align:right;">{f"{_cpf_total_sqft:,}" if _cpf_total_sqft else "—"}</td>'
+            f'<td style="text-align:right;">{_cpf_avg}</td>'
+            f'</tr>'
+        )
+        _cpf_tbl += '</tbody></table>'
+        st.markdown(f'<div class="card" style="overflow-x:auto">{_cpf_tbl}</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:0.85rem;color:#6b7280;margin-top:6px;margin-bottom:4px;">'
+            'Square footage values are approximate. Buildings marked "—" have no area data available. '
+            'Cost / Sq Ft = Estimated Cost ÷ Gross Sq Ft.'
+            '</div>',
+            unsafe_allow_html=True)
 
         # All Buildings chart
         max_periods = 4
@@ -1296,27 +1439,33 @@ if active_tab == "Overview":
                      if len(sorted_sel) == 1
                      else f"Combined Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
         _b_scope = df_all[df_all["building"] == sel_bld]
-        _b_co2_kg = b_cur * EMISSION_FACTOR
-        _b_co2_t  = _b_co2_kg / 1000.0
+        _b_co2_kg = (b_cur * EMISSION_FACTOR) if b_cur > 0 else None
+        _b_co2_t  = (_b_co2_kg / 1000.0) if _b_co2_kg is not None else None
         _b_mwh    = b_cur / 1000.0
+        _b_cost_val = b_cost if b_cur > 0 else None
         render_kpis([
             {"label": bm1_label,
              "value": fmt_kwh(b_cur),
              "note":  (f"{_b_mwh:,.0f} MWh"
                        if b_cur >= 1_000_000 else None)},
             {"label": bm2_label,
-             "value": (f"${b_cost/1_000_000:.2f}M"
-                       if b_cost >= 1_000_000
-                       else fmt_cost(b_cost)),
-             "note":  (fmt_cost(b_cost)
-                       if b_cost >= 1_000_000 else None)},
+             "value": ("N/A" if _b_cost_val is None
+                       else (f"${_b_cost_val/1_000_000:.2f}M"
+                             if _b_cost_val >= 1_000_000
+                             else fmt_cost(_b_cost_val))),
+             "note":  (fmt_cost(_b_cost_val)
+                       if _b_cost_val is not None and _b_cost_val >= 1_000_000
+                       else None)},
             {"label": "Average Power",
              "value": fmt_power(b_cur, days_in_period(sorted_sel, time_filter, _b_scope)),
              "note":  "Energy per hour"},
             {"label": "CO₂ Emitted",
-             "value": (f"{_b_co2_t:,.1f} t" if _b_co2_t >= 1
-                       else f"{_b_co2_kg:,.0f} kg"),
-             "note":  (f"{_b_co2_kg:,.0f} kg" if _b_co2_t >= 1 else None)},
+             "value": ("N/A" if _b_co2_t is None
+                       else (f"{_b_co2_t:,.1f} t" if _b_co2_t >= 1
+                             else f"{_b_co2_kg:,.0f} kg")),
+             "note":  (f"{_b_co2_kg:,.0f} kg"
+                       if _b_co2_t is not None and _b_co2_t >= 1
+                       else None)},
         ])
 
         st.markdown(
