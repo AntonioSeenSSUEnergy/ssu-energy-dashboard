@@ -9,5 +9,5 @@ jobs:
     steps:
       - name: Ping Streamlit app
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          curl -L --fail --silent --show-error \
           https://ssu-energy-dashboard-usb4padbsjz7yz8tdq36zz.streamlit.app/
