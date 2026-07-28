@@ -26,7 +26,6 @@ from energy_core import (
 
 # Logo loader
 def _load_logo_b64() -> str:
-    # Uses dashboard_header.png — replace this file to update the banner
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_header.png")
     try:
         with open(logo_path, "rb") as f:
@@ -221,11 +220,62 @@ h2, h3 { font-family: 'Inter', sans-serif !important; font-weight: 700 !importan
 
 div[data-testid="column"] { padding: 0 6px !important; }
 
+/* ============================================================
+   RESPONSIVE / MOBILE STYLES
+   Two progressive breakpoints (tablet/large-phone, small-phone).
+   Presentation-only: font sizes, padding, and grid column counts.
+   ============================================================ */
 @media (max-width: 768px) {
-    h1 { font-size: 1.6rem !important; }
+    html, body, [class*="css"], p, label, button { font-size: 15px; }
+
+    .block-container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 1.25rem !important;
+    }
+
+    h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+    h2, h3 { font-size: 1.15rem !important; }
+    .sec-label { font-size: 1.15rem !important; margin: 20px 0 12px 0 !important; }
+
+    [data-testid="stMetric"] { padding: 14px 16px !important; }
     [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
-    .lb-row { flex-wrap: wrap; gap: 8px; }
-    .lb-pct { font-size: 1.3rem !important; }
+    [data-testid="stMetricLabel"] p { font-size: 0.72rem !important; }
+
+    /* KPI stat-card grid (render_kpis) — drop to 2 columns so labels/values stay readable */
+    .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .kpi-card { padding: 14px 15px !important; border-radius: 12px !important; }
+    .kpi-label { font-size: 11px !important; }
+    .kpi-value { font-size: 22px !important; }
+    .kpi-note { font-size: 12px !important; }
+
+    .card { padding: 14px 16px !important; }
+    .card-title { font-size: 1.0rem !important; }
+
+    .goal-box { padding: 16px 16px !important; }
+    .goal-status { font-size: 1.15rem !important; }
+
+    /* Leaderboard rows stack instead of squeezing three columns together */
+    .lb-row { flex-wrap: wrap; gap: 8px; padding: 12px 14px !important; }
+    .lb-name { font-size: 1.0rem !important; }
+    .lb-sub { font-size: 0.82rem !important; }
+    .lb-pct { font-size: 1.3rem !important; min-width: 70px; }
+    .lb-rank { font-size: 1.2rem !important; min-width: 34px !important; }
+
+    /* Data-integrity tables — smaller type; still scroll horizontally if needed */
+    .di-table { font-size: 0.78rem; }
+    .di-table th, .di-table td { padding: 7px 8px !important; }
+    .badge { font-size: 0.72rem; padding: 2px 7px; }
+
+    .alert-red, .alert-amber, .alert-blue, .alert-green { padding: 10px 12px !important; font-size: 0.88rem !important; }
+}
+
+@media (max-width: 480px) {
+    h1 { font-size: 1.3rem !important; }
+    .kpi-grid { grid-template-columns: 1fr !important; }
+    .kpi-value { font-size: 26px !important; }
+    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+    .lb-pct { font-size: 1.15rem !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -442,35 +492,7 @@ SENSOR_REGISTRY = [
 ]
 
 
-# BUILDING SQUARE FOOTAGE (approximate gross sq ft; update when actuals are available)
-BUILDING_SQFT = {
-    "Green Music Center":          128_000,
-    "Nichols Hall":                 52_000,
-    "Rachel Carson Hall":           72_000,
-    "Wine Spectator Learning Ctr":  30_000,
-    "Student Center":               85_000,
-    "Physical Education":          120_000,
-    "Ives Hall":                    65_000,
-    "Campus Misc":                  None,    # aggregate — no single sqft
-    "Art Building":                 28_000,
-    "Boiler Plant":                  8_000,
-    "Darwin Hall":                  55_000,
-    "ETC":                          20_000,
-    "Salazar Hall":                 90_000,
-    "Schulz Info Center":           82_000,
-    "Stevenson Hall":               48_000,
-    "Student Health Center":        22_000,
-}
-
-
-def fmt_cost_per_sqft(cost: float, sqft) -> str:
-    """Format a $/sqft value, or return N/A when sqft is unknown."""
-    if sqft is None or sqft <= 0 or cost is None:
-        return "N/A"
-    return f"${cost / sqft:.4f}"
-
-
-
+# Map utility-type to the row's contribution
 def _row_contribution(row, utility: str) -> float:
     """Return how much of `utility` a single df_all row carries."""
     if utility == "Electric":
@@ -595,8 +617,6 @@ def fmt_kwh(v):
 
 
 def fmt_cost(v):
-    if v is None:
-        return "N/A"
     return f"${abs(v):,.0f}"
 
 
@@ -611,9 +631,7 @@ def fmt_power(kwh: float, days: float) -> str:
 
 
 def fmt_co2(kwh: float, factor: float) -> str:
-    """CO2 in kg and metric tons. Returns N/A when data is unavailable."""
-    if kwh is None or kwh == 0.0:
-        return "N/A"
+    """CO2 in kg and metric tons."""
     kg = kwh * factor
     tons = kg / 1000.0
     return f"{kg:,.0f} kg ({tons:,.0f} t)"
@@ -629,24 +647,24 @@ def render_kpis(items, columns=None):
     for it in items:
         note_html = ""
         if it.get("note"):
-            note_html = (f'<div style="margin-top:4px;font-size:14px;'
+            note_html = (f'<div class="kpi-note" style="margin-top:4px;font-size:14px;'
                          f'color:#6b7280;font-weight:500;font-family:Inter,sans-serif;">'
                          f'{it["note"]}</div>')
         cards_html.append(
-            f'<div style="background:#f8fafc;border:1px solid #e2e8f0;'
+            f'<div class="kpi-card" style="background:#f8fafc;border:1px solid #e2e8f0;'
             f'border-radius:16px;padding:20px 22px;'
             f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
-            f'<div style="font-size:13px;color:#6b7280;font-weight:800;'
+            f'<div class="kpi-label" style="font-size:13px;color:#6b7280;font-weight:800;'
             f'text-transform:uppercase;letter-spacing:0.08em;'
             f'font-family:Inter,sans-serif;">{it["label"]}</div>'
-            f'<div style="margin-top:8px;font-size:36px;font-weight:800;'
+            f'<div class="kpi-value" style="margin-top:8px;font-size:36px;font-weight:800;'
             f'color:#0f172a;letter-spacing:-0.03em;line-height:1.15;'
             f'font-family:Inter,sans-serif;">{it["value"]}</div>'
             f'{note_html}'
             f'</div>'
         )
     st.markdown(
-        f'<div style="display:grid;grid-template-columns:repeat({cols},1fr);'
+        f'<div class="kpi-grid" style="display:grid;grid-template-columns:repeat({cols},1fr);'
         f'gap:14px;margin-top:16px;margin-bottom:16px;">'
         + "".join(cards_html) +
         '</div>',
@@ -878,14 +896,13 @@ section[data-testid="stSidebar"] .sidebar-title {
 
     st.markdown("---")
 
-    # COST PROJECTION
-    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Cost Projection</p>', unsafe_allow_html=True)
+    # COST
+    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Cost</p>', unsafe_allow_html=True)
     st.markdown('<p style="color:#a3bcd0;font-size:1.0rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;">Estimated Cost Rate ($/kWh)</p>', unsafe_allow_html=True)
     COST_RATE_OPTIONS = {
-        "— Select a rate to show projections —": None,
         "$0.10 / kWh": 0.10,
         "$0.12 / kWh": 0.12,
-        "$0.15 / kWh": 0.15,
+        "$0.15 / kWh (default)": 0.15,
         "$0.18 / kWh": 0.18,
         "$0.20 / kWh": 0.20,
         "$0.25 / kWh": 0.25,
@@ -897,46 +914,30 @@ section[data-testid="stSidebar"] .sidebar-title {
     }
     selected_rate_label = st.selectbox(
         "cost_rate", list(COST_RATE_OPTIONS.keys()),
-        index=0, label_visibility="collapsed")
+        index=2, label_visibility="collapsed")
     ENERGY_RATE = COST_RATE_OPTIONS[selected_rate_label]
-    _cost_rate_set = ENERGY_RATE is not None
-    if _cost_rate_set:
-        st.markdown(
-            f'<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:6px;margin-bottom:4px;">'
-            f'All cost estimates use <b style="color:#ffffff">${ENERGY_RATE:.2f}/kWh</b></div>',
-            unsafe_allow_html=True)
-    else:
-        ENERGY_RATE = 0.0  # safe fallback so arithmetic doesn't break
-        st.markdown(
-            '<div style="font-size:0.95rem;font-weight:600;color:#f59e0b;margin-top:6px;margin-bottom:4px;">'
-            '👆 Select a rate above to show cost projections</div>',
-            unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:6px;margin-bottom:4px;">'
+        f'All cost estimates use <b style="color:#ffffff">${ENERGY_RATE:.2f}/kWh</b></div>',
+        unsafe_allow_html=True)
 
     # CO2 emission factor
     st.markdown(
         '<p style="color:#a3bcd0;font-size:1.0rem;font-weight:700;text-transform:uppercase;'
         'letter-spacing:0.06em;margin-top:14px;margin-bottom:2px;">CO₂ Emission Factor</p>',
         unsafe_allow_html=True)
-    _co2_factor_raw = st.number_input(
+    EMISSION_FACTOR = st.number_input(
         "CO₂ Emission Factor (kg CO₂ / kWh)",
-        min_value=0.0, max_value=1.0, value=0.0, step=0.01,
+        min_value=0.0, max_value=1.0, value=0.20, step=0.01,
         format="%.2f", label_visibility="collapsed", key="co2_emission_factor")
-    _co2_rate_set = _co2_factor_raw > 0.0
-    EMISSION_FACTOR = _co2_factor_raw
-    if _co2_rate_set:
-        st.markdown(
-            f'<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:4px;line-height:1.6;">'
-            f'kg CO₂ produced per kWh of energy. '
-            f'<b style="color:#ffffff">{EMISSION_FACTOR:.2f}</b> means '
-            f'{EMISSION_FACTOR:.2f} kg CO₂ per 1 kWh used.<br>'
-            f'<span style="color:#7ab4d4">Formula: CO₂ = Energy (kWh) × Emission Factor</span>'
-            f'</div>',
-            unsafe_allow_html=True)
-    else:
-        st.markdown(
-            '<div style="font-size:0.95rem;font-weight:600;color:#f59e0b;margin-top:4px;line-height:1.6;">'
-            '👆 Enter a factor above (e.g. 0.20) to show CO₂ estimates</div>',
-            unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="font-size:1.05rem;font-weight:600;color:#c8d9ea;margin-top:4px;line-height:1.6;">'
+        f'kg CO₂ produced per kWh of energy. '
+        f'<b style="color:#ffffff">{EMISSION_FACTOR:.2f}</b> means '
+        f'{EMISSION_FACTOR:.2f} kg CO₂ per 1 kWh used.<br>'
+        f'<span style="color:#7ab4d4">Formula: CO₂ = Energy (kWh) × Emission Factor</span>'
+        f'</div>',
+        unsafe_allow_html=True)
     st.markdown("---")
 
     # BUILDING DETAIL
@@ -1038,35 +1039,6 @@ section[data-testid="stSidebar"] .sidebar-title {
         f'{_latest_label} {_latest_day_display}</div>',
         unsafe_allow_html=True)
 
-    st.markdown("---")
-
-    # CONTACT
-    st.markdown('<p style="color:#4dabf7;font-size:1.25rem;font-weight:800;margin-bottom:4px;">Contact</p>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="font-size:0.92rem;color:#c8d9ea;line-height:1.9;font-family:Inter,sans-serif;">'
-        '<b style="color:#ffffff;">Project Lead:</b> Farid Farahmand<br>'
-        '<b style="color:#ffffff;">Email:</b> engineering@sonoma.edu<br>'
-        '<b style="color:#ffffff;">Department:</b> Department of Engineering<br>'
-        '<b style="color:#ffffff;">Phone:</b> 707-664-2030<br>'
-        '<b style="color:#ffffff;">Institution:</b> Sonoma State University<br>'
-        '</div>',
-        unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # EDUCATIONAL DISCLAIMER
-    st.markdown(
-        '<div style="background:rgba(255,255,255,0.07);border-radius:8px;'
-        'padding:10px 14px;font-size:0.82rem;color:#a3bcd0;line-height:1.6;'
-        'font-family:Inter,sans-serif;border:1px solid rgba(255,255,255,0.1);">'
-        '📚 <b style="color:#c8d9ea;">Educational Project</b><br>'
-        'This dashboard was developed as part of an academic data engineering '
-        'project at Sonoma State University. Cost and CO₂ figures are estimates '
-        'for educational purposes only and should not be used for billing or '
-        'regulatory reporting.'
-        '</div>',
-        unsafe_allow_html=True)
-
 
 # SELECTION STATE
 if selected_weeks:
@@ -1089,7 +1061,7 @@ else:
     latest_week       = None
     by_bld            = pd.DataFrame(columns=["week", "building", "kWh"])
     campus_total_sel  = 0.0
-    campus_total_cost = None   # N/A when no period selected
+    campus_total_cost = 0.0
     prev_week         = None
     campus_prev       = None
     pct_change        = None
@@ -1103,16 +1075,7 @@ if active_tab == "Overview":
         use_container_width=True
     )
 
-    st.markdown(
-        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;'
-        'border-radius:0 8px 8px 0;padding:10px 16px;font-size:0.92rem;color:#1e40af;'
-        'font-weight:500;margin-bottom:4px;font-family:Inter,sans-serif;">'
-        '📚 <b>Educational Project</b> — This dashboard was developed as part of an academic '
-        'data engineering project at Sonoma State University. All cost projections and CO₂ '
-        'estimates are for educational purposes only.'
-        '</div>',
-        unsafe_allow_html=True)
-
+    
     # All-time campus energy chart
     _at = df_all.dropna(subset=["_wstart"]).copy()
     _at["_month"] = _at["_wstart"].dt.to_period("M")
@@ -1154,39 +1117,26 @@ if active_tab == "Overview":
     _co2_kg = _at_total_kwh * EMISSION_FACTOR
     _co2_t  = _co2_kg / 1000.0
     _at_mwh = _at_total_kwh / 1000.0
-    # Average cost per sq ft across buildings with known sqft
-    _sqft_total_at   = sum(v for v in BUILDING_SQFT.values() if v is not None)
-    _cost_per_sqft_at = (f"${_at_total_cost / _sqft_total_at:.4f}"
-                         if (_sqft_total_at > 0 and _cost_rate_set) else "N/A")
     render_kpis([
         {"label": "Total Energy Consumed",
          "value": fmt_kwh(_at_total_kwh),
          "note":  f"{_at_mwh:,.0f} MWh"},
-        {"label": "Total Projected Energy Cost",
-         "value": ("N/A" if not _cost_rate_set else
-                   (f"${_at_total_cost/1_000_000:.2f}M"
-                    if _at_total_cost >= 1_000_000
-                    else fmt_cost(_at_total_cost))),
-         "note":  (fmt_cost(_at_total_cost) if _cost_rate_set else "Select a rate in the sidebar")},
-        {"label": "Avg Projected Power",
+        {"label": "Total Energy Cost",
+         "value": (f"${_at_total_cost/1_000_000:.2f}M"
+                   if _at_total_cost >= 1_000_000
+                   else fmt_cost(_at_total_cost)),
+         "note":  fmt_cost(_at_total_cost)},
+        {"label": "Average Power",
          "value": fmt_power(_at_total_kwh, _at_days_span),
          "note":  "Energy per hour"},
-        {"label": "Projected CO₂ Emissions",
-         "value": ("N/A" if not _co2_rate_set else
-                   (f"{_co2_t:,.0f} t" if _co2_t >= 1 else f"{_co2_kg:,.0f} kg")),
-         "note":  (f"{_co2_kg:,.0f} kg" if (_co2_rate_set and _co2_t >= 1) else
-                   ("Enter an emission factor in the sidebar" if not _co2_rate_set else None))},
-        {"label": "Avg Projected Cost per Sq Ft",
-         "value": _cost_per_sqft_at,
-         "note":  ("Across buildings with known area" if _cost_rate_set else "Select a rate in the sidebar")},
+        {"label": "CO₂ Emitted",
+         "value": f"{_co2_t:,.0f} t",
+         "note":  f"{_co2_kg:,.0f} kg"},
     ])
     st.markdown(
         '<p style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:-4px;line-height:1.4;">'
-        '<b>Avg Projected Power:</b> energy per hour over the period (kWh ÷ total hours). '
-        f'<b>Projected CO₂:</b> kWh × emission factor — '
-        + (f'{EMISSION_FACTOR:.2f} kg/kWh set in the sidebar.'
-           if _co2_rate_set else
-           '<span style="color:#d97706">Enter an emission factor in the sidebar to show CO₂ values.</span>') +
+        '<b>Avg Power:</b> energy per hour over the period (kWh ÷ total hours). '
+        f'<b>CO₂:</b> kWh × {EMISSION_FACTOR:.2f} kg/kWh — adjustable in the sidebar.'
         '</p>',
         unsafe_allow_html=True)
 
@@ -1266,9 +1216,8 @@ if active_tab == "Overview":
         k1_label = (f"Energy During — {period_label(sorted_sel[0])}"
                     if len(sorted_sel) == 1
                     else f"Energy During — {len(sorted_sel)} Periods Combined")
-        _sel_co2_kg = (campus_total_sel * EMISSION_FACTOR
-                       if (campus_total_sel > 0 and _co2_rate_set) else None)
-        _sel_co2_t  = (_sel_co2_kg / 1000.0) if _sel_co2_kg is not None else None
+        _sel_co2_kg = campus_total_sel * EMISSION_FACTOR
+        _sel_co2_t  = _sel_co2_kg / 1000.0
         _sel_mwh    = campus_total_sel / 1000.0
         render_kpis([
             {"label": k1_label,
@@ -1276,26 +1225,19 @@ if active_tab == "Overview":
              "note":  (f"{_sel_mwh:,.0f} MWh"
                        if campus_total_sel >= 1_000_000
                        else None)},
-            {"label": f"Projected Energy Cost (@ ${ENERGY_RATE:.2f}/kWh)" if _cost_rate_set else "Projected Energy Cost",
-             "value": ("N/A" if (campus_total_cost is None or not _cost_rate_set)
-                       else (f"${campus_total_cost/1_000_000:.2f}M"
-                             if campus_total_cost >= 1_000_000
-                             else fmt_cost(campus_total_cost))),
-             "note":  ("Select a rate in the sidebar" if not _cost_rate_set else
-                       (fmt_cost(campus_total_cost)
-                        if campus_total_cost is not None and campus_total_cost >= 1_000_000
-                        else None))},
-            {"label": "Avg Projected Power",
+            {"label": f"Estimated Energy Cost (@ ${ENERGY_RATE}/kWh)",
+             "value": (f"${campus_total_cost/1_000_000:.2f}M"
+                       if campus_total_cost >= 1_000_000
+                       else fmt_cost(campus_total_cost)),
+             "note":  (fmt_cost(campus_total_cost)
+                       if campus_total_cost >= 1_000_000
+                       else None)},
+            {"label": "Average Power",
              "value": fmt_power(campus_total_sel, _sel_days),
              "note":  "Energy per hour"},
-            {"label": "Projected CO₂ Emissions",
-             "value": ("N/A" if _sel_co2_t is None
-                       else (f"{_sel_co2_t:,.1f} t" if _sel_co2_t >= 1
-                             else f"{_sel_co2_kg:,.0f} kg")),
-             "note":  ("Enter an emission factor in the sidebar" if not _co2_rate_set else
-                       (f"{_sel_co2_kg:,.0f} kg"
-                        if _sel_co2_t is not None and _sel_co2_t >= 1
-                        else None))},
+            {"label": "CO₂ Emitted",
+             "value": f"{_sel_co2_t:,.1f} t" if _sel_co2_t >= 1 else f"{_sel_co2_kg:,.0f} kg",
+             "note":  (f"{_sel_co2_kg:,.0f} kg" if _sel_co2_t >= 1 else None)},
         ])
 
         # All Buildings chart
@@ -1361,92 +1303,6 @@ if active_tab == "Overview":
             fig_all.update_xaxes(tickfont=dict(size=17, color="#111827", family="Inter", weight=700))
             st.plotly_chart(fig_all, use_container_width=True)
 
-        # Cost per Square Foot table — placed here so readers see "which building uses most"
-        # in the chart above, then naturally ask "what does that cost per sq ft?" here
-        _cpf_title = (f"Cost Projection per Square Foot — {period_label(sorted_sel[0])}"
-                      if len(sorted_sel) == 1
-                      else f"Cost Projection per Square Foot — {len(sorted_sel)} Selected Periods")
-        st.markdown(f'<div class="sec-label">{_cpf_title}</div>', unsafe_allow_html=True)
-
-        _cpf_bld_kwh = (by_bld[by_bld["week"].isin(sorted_sel)]
-                        .groupby("building")["kWh"].sum()
-                        .reset_index()
-                        .sort_values("kWh", ascending=False))
-
-        _cpf_tbl = (
-            '<table class="cpf-tbl" style="table-layout:auto;width:auto;border-collapse:collapse;">'
-            '<thead><tr>'
-            '<th style="min-width:160px;text-align:left;">Building</th>'
-            '<th style="min-width:95px;text-align:right;">Total kWh</th>'
-            f'<th style="min-width:140px;text-align:right;">Est. Cost (@ ${ENERGY_RATE:.2f}/kWh)</th>'
-            '<th style="min-width:80px;text-align:right;">Sq Ft</th>'
-            '<th style="min-width:90px;text-align:right;">Cost / Sq Ft</th>'
-            '</tr></thead><tbody>'
-        )
-        _cpf_total_kwh  = 0.0
-        _cpf_total_cost = 0.0
-        _cpf_total_sqft = 0
-        for _, _cpf_r in _cpf_bld_kwh.iterrows():
-            _bname     = _cpf_r["building"]
-            _bkwh      = float(_cpf_r["kWh"])
-            _bcost     = _bkwh * ENERGY_RATE
-            _bsqft     = BUILDING_SQFT.get(_bname)
-            _bcsf      = fmt_cost_per_sqft(_bcost, _bsqft) if _cost_rate_set else "N/A"
-            _sqft_disp = f"{_bsqft:,}" if _bsqft else "—"
-            _cost_disp = f"${_bcost:,.0f}" if _cost_rate_set else "N/A"
-            _cpf_total_kwh  += _bkwh
-            _cpf_total_cost += _bcost
-            if _bsqft:
-                _cpf_total_sqft += _bsqft
-            _cpf_tbl += (
-                f'<tr>'
-                f'<td style="white-space:nowrap;"><b>{_bname}</b></td>'
-                f'<td style="text-align:right;">{_bkwh:,.1f}</td>'
-                f'<td style="text-align:right;">{_cost_disp}</td>'
-                f'<td style="text-align:right;">{_sqft_disp}</td>'
-                f'<td style="text-align:right;font-weight:700;">{_bcsf}</td>'
-                f'</tr>'
-            )
-        _cpf_avg = (fmt_cost_per_sqft(_cpf_total_cost, _cpf_total_sqft if _cpf_total_sqft > 0 else None)
-                    if _cost_rate_set else "N/A")
-        _total_cost_disp = f"${_cpf_total_cost:,.0f}" if _cost_rate_set else "N/A"
-        _cpf_tbl += (
-            f'<tr class="cpf-total">'
-            f'<td>CAMPUS TOTAL</td>'
-            f'<td style="text-align:right;">{_cpf_total_kwh:,.1f}</td>'
-            f'<td style="text-align:right;">{_total_cost_disp}</td>'
-            f'<td style="text-align:right;">{f"{_cpf_total_sqft:,}" if _cpf_total_sqft else "—"}</td>'
-            f'<td style="text-align:right;">{_cpf_avg}</td>'
-            f'</tr>'
-        )
-        _cpf_tbl += '</tbody></table>'
-        st.markdown(
-            f'<div class="card" style="overflow-x:auto;padding:0;">'
-            f'<style>'
-            f'.cpf-tbl {{table-layout:auto;width:auto;border-collapse:collapse;font-size:0.92rem;'
-            f'border:2px solid #cbd5e1;border-radius:8px;overflow:hidden;}}'
-            f'.cpf-tbl th {{background:#e2e8f0;color:#1e293b;font-weight:700;padding:10px 16px;'
-            f'text-align:left;border-bottom:2px solid #94a3b8;border-right:1px solid #94a3b8;'
-            f'font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;}}'
-            f'.cpf-tbl th:last-child {{border-right:none;}}'
-            f'.cpf-tbl td {{padding:9px 16px;border-bottom:1px solid #cbd5e1;'
-            f'border-right:1px solid #e2e8f0;color:#111827;white-space:nowrap;vertical-align:middle;}}'
-            f'.cpf-tbl td:last-child {{border-right:none;}}'
-            f'.cpf-tbl tr:last-child td {{border-bottom:none;}}'
-            f'.cpf-tbl tr:hover td {{background:#f1f5f9;}}'
-            f'.cpf-total td {{background:#f1f5f9;font-weight:700;border-top:2px solid #94a3b8;}}'
-            f'.cpf-total:hover td {{background:#e8edf3;}}'
-            f'</style>'
-            + _cpf_tbl +
-            f'</div>',
-            unsafe_allow_html=True)
-        st.markdown(
-            '<div style="font-size:0.85rem;color:#6b7280;margin-top:8px;margin-bottom:4px;">'
-            'Square footage values are approximate. Buildings marked "—" have no area data available. '
-            'Cost / Sq Ft = Projected Cost ÷ Gross Sq Ft.'
-            '</div>',
-            unsafe_allow_html=True)
-
         # Building detail
         st.markdown('<div class="sec-label">Building Detail — Select a Building to View Details</div>', unsafe_allow_html=True)
 
@@ -1487,38 +1343,31 @@ if active_tab == "Overview":
         bm1_label = (f"{_bld_short} — {period_label(sorted_sel[0])}"
                      if len(sorted_sel) == 1
                      else f"{_bld_short} — {len(sorted_sel)} Selected Periods")
-        bm2_label = (f"Projected Cost (@ ${ENERGY_RATE:.2f}/kWh)" if _cost_rate_set
-                     else "Projected Cost")
+        bm2_label = (f"Estimated Cost (@ ${ENERGY_RATE}/kWh)"
+                     if len(sorted_sel) == 1
+                     else f"Combined Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
         _b_scope = df_all[df_all["building"] == sel_bld]
-        _b_co2_kg = (b_cur * EMISSION_FACTOR) if (b_cur > 0 and _co2_rate_set) else None
-        _b_co2_t  = (_b_co2_kg / 1000.0) if _b_co2_kg is not None else None
+        _b_co2_kg = b_cur * EMISSION_FACTOR
+        _b_co2_t  = _b_co2_kg / 1000.0
         _b_mwh    = b_cur / 1000.0
-        _b_cost_val = b_cost if (b_cur > 0 and _cost_rate_set) else None
         render_kpis([
             {"label": bm1_label,
              "value": fmt_kwh(b_cur),
              "note":  (f"{_b_mwh:,.0f} MWh"
                        if b_cur >= 1_000_000 else None)},
             {"label": bm2_label,
-             "value": ("N/A" if _b_cost_val is None
-                       else (f"${_b_cost_val/1_000_000:.2f}M"
-                             if _b_cost_val >= 1_000_000
-                             else fmt_cost(_b_cost_val))),
-             "note":  ("Select a rate in the sidebar" if not _cost_rate_set else
-                       (fmt_cost(_b_cost_val)
-                        if _b_cost_val is not None and _b_cost_val >= 1_000_000
-                        else None))},
-            {"label": "Avg Projected Power",
+             "value": (f"${b_cost/1_000_000:.2f}M"
+                       if b_cost >= 1_000_000
+                       else fmt_cost(b_cost)),
+             "note":  (fmt_cost(b_cost)
+                       if b_cost >= 1_000_000 else None)},
+            {"label": "Average Power",
              "value": fmt_power(b_cur, days_in_period(sorted_sel, time_filter, _b_scope)),
              "note":  "Energy per hour"},
-            {"label": "Projected CO₂ Emissions",
-             "value": ("N/A" if _b_co2_t is None
-                       else (f"{_b_co2_t:,.1f} t" if _b_co2_t >= 1
-                             else f"{_b_co2_kg:,.0f} kg")),
-             "note":  ("Enter an emission factor in the sidebar" if not _co2_rate_set else
-                       (f"{_b_co2_kg:,.0f} kg"
-                        if _b_co2_t is not None and _b_co2_t >= 1
-                        else None))},
+            {"label": "CO₂ Emitted",
+             "value": (f"{_b_co2_t:,.1f} t" if _b_co2_t >= 1
+                       else f"{_b_co2_kg:,.0f} kg"),
+             "note":  (f"{_b_co2_kg:,.0f} kg" if _b_co2_t >= 1 else None)},
         ])
 
         st.markdown(
@@ -2001,9 +1850,9 @@ elif active_tab == "Thermal":
             _tbm1_label = (f"{_bld_short_th} — {period_label(sorted_sel[0])} (Thermal)"
                            if len(sorted_sel) == 1
                            else f"{_bld_short_th} — {len(sorted_sel)} Selected Periods (Thermal)")
-            _tbm2_label = (f"Projected Thermal Cost (@ ${ENERGY_RATE}/kWh)"
+            _tbm2_label = (f"Estimated Thermal Cost (@ ${ENERGY_RATE}/kWh)"
                            if len(sorted_sel) == 1
-                           else f"Combined Projected Thermal Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
+                           else f"Combined Thermal Cost of {len(sorted_sel)} Periods (@ ${ENERGY_RATE}/kWh)")
             _th_b_scope = df_all[df_all["building"] == _th_sel_bld]
             _bth_co2_kg = _b_th_cur * EMISSION_FACTOR
             _bth_co2_t  = _bth_co2_kg / 1000.0
@@ -2182,7 +2031,7 @@ elif active_tab == "DataIntegrity":
               f'<td>CAMPUS TOTAL</td><td>{total_kwh:,.1f}</td><td>{total_kwh/1000:.2f}</td>'
               f'<td>${total_kwh * ENERGY_RATE:,.0f}</td><td></td></tr>')
     v_tbl += '</tbody></table>'
-    st.markdown(f'<div class="card">{v_tbl}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card" style="overflow-x:auto">{v_tbl}</div>', unsafe_allow_html=True)
 
     st.markdown(
         f'<div style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:8px;margin-bottom:4px;">'
