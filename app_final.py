@@ -221,67 +221,11 @@ h2, h3 { font-family: 'Inter', sans-serif !important; font-weight: 700 !importan
 
 div[data-testid="column"] { padding: 0 6px !important; }
 
-/* ============================================================
-   RESPONSIVE / MOBILE STYLES
-   Two progressive breakpoints (tablet/large-phone, small-phone).
-   Presentation-only: font sizes, padding, and grid column counts.
-   No data, logic, or component behavior is changed here.
-   ============================================================ */
 @media (max-width: 768px) {
-    html, body, [class*="css"], p, label, button { font-size: 15px; }
-
-    .block-container {
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
-        padding-top: 1.25rem !important;
-    }
-
-    h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
-    h2, h3 { font-size: 1.15rem !important; }
-    .sec-label { font-size: 1.15rem !important; margin: 20px 0 12px 0 !important; }
-
-    [data-testid="stMetric"] { padding: 14px 16px !important; }
+    h1 { font-size: 1.6rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
-    [data-testid="stMetricLabel"] p { font-size: 0.72rem !important; }
-
-    /* KPI stat-card grid (render_kpis) — drop to 2 columns so labels/values stay readable */
-    .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
-    .kpi-card { padding: 14px 15px !important; border-radius: 12px !important; }
-    .kpi-label { font-size: 11px !important; }
-    .kpi-value { font-size: 22px !important; }
-    .kpi-note { font-size: 12px !important; }
-
-    .card { padding: 14px 16px !important; }
-    .card-title { font-size: 1.0rem !important; }
-
-    .goal-box { padding: 16px 16px !important; }
-    .goal-status { font-size: 1.15rem !important; }
-
-    /* Leaderboard rows stack instead of squeezing three columns together */
-    .lb-row { flex-wrap: wrap; gap: 8px; padding: 12px 14px !important; }
-    .lb-name { font-size: 1.0rem !important; }
-    .lb-sub { font-size: 0.82rem !important; }
-    .lb-pct { font-size: 1.3rem !important; min-width: 70px; }
-    .lb-rank { font-size: 1.2rem !important; min-width: 34px !important; }
-
-    /* Data-integrity tables — smaller type; still scroll horizontally if needed */
-    .di-table { font-size: 0.78rem; }
-    .di-table th, .di-table td { padding: 7px 8px !important; }
-    .badge { font-size: 0.72rem; padding: 2px 7px; }
-
-    /* Cost-per-Square-Foot table — same treatment as the data-integrity tables */
-    .cpf-tbl { font-size: 0.78rem !important; }
-    .cpf-tbl th, .cpf-tbl td { padding: 7px 8px !important; }
-
-    .alert-red, .alert-amber, .alert-blue, .alert-green { padding: 10px 12px !important; font-size: 0.88rem !important; }
-}
-
-@media (max-width: 480px) {
-    h1 { font-size: 1.3rem !important; }
-    .kpi-grid { grid-template-columns: 1fr !important; }
-    .kpi-value { font-size: 26px !important; }
-    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
-    .lb-pct { font-size: 1.15rem !important; }
+    .lb-row { flex-wrap: wrap; gap: 8px; }
+    .lb-pct { font-size: 1.3rem !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -430,11 +374,7 @@ def load_data() -> pd.DataFrame:
     if pd.api.types.is_datetime64_any_dtype(weekly["week"]):
         weekly = weekly.copy()
         weekly["week"] = weekly["week"].dt.date.astype(str)
-    weekly = weekly[
-        (weekly["kWh"] > 0)
-        | (weekly["gas_therm"] > 0)
-        | (weekly["water_gallon"] > 0)
-    ].copy()
+    weekly = weekly[weekly["kWh"] > 0].copy()
     weekly.attrs.update(_saved_attrs)
     return weekly, set()
 
@@ -689,24 +629,24 @@ def render_kpis(items, columns=None):
     for it in items:
         note_html = ""
         if it.get("note"):
-            note_html = (f'<div class="kpi-note" style="margin-top:4px;font-size:14px;'
+            note_html = (f'<div style="margin-top:4px;font-size:14px;'
                          f'color:#6b7280;font-weight:500;font-family:Inter,sans-serif;">'
                          f'{it["note"]}</div>')
         cards_html.append(
-            f'<div class="kpi-card" style="background:#f8fafc;border:1px solid #e2e8f0;'
+            f'<div style="background:#f8fafc;border:1px solid #e2e8f0;'
             f'border-radius:16px;padding:20px 22px;'
             f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
-            f'<div class="kpi-label" style="font-size:13px;color:#6b7280;font-weight:800;'
+            f'<div style="font-size:13px;color:#6b7280;font-weight:800;'
             f'text-transform:uppercase;letter-spacing:0.08em;'
             f'font-family:Inter,sans-serif;">{it["label"]}</div>'
-            f'<div class="kpi-value" style="margin-top:8px;font-size:36px;font-weight:800;'
+            f'<div style="margin-top:8px;font-size:36px;font-weight:800;'
             f'color:#0f172a;letter-spacing:-0.03em;line-height:1.15;'
             f'font-family:Inter,sans-serif;">{it["value"]}</div>'
             f'{note_html}'
             f'</div>'
         )
     st.markdown(
-        f'<div class="kpi-grid" style="display:grid;grid-template-columns:repeat({cols},1fr);'
+        f'<div style="display:grid;grid-template-columns:repeat({cols},1fr);'
         f'gap:14px;margin-top:16px;margin-bottom:16px;">'
         + "".join(cards_html) +
         '</div>',
@@ -810,6 +750,13 @@ _n_raw_files = len(_find_raw_csv_files())
 
 # SIDEBAR
 with st.sidebar:
+    st.markdown(
+        '<div style="text-align:center;margin-bottom:10px;margin-top:4px;">'
+        '<a href="https://faridfarahmand.net/SSU_Energy/SSU_Energy_tutorial.html" '
+        'target="_blank" '
+        'style="color:#4dabf7;font-size:1.0rem;font-weight:700;text-decoration:none;">'
+        '📖 Tutorial / How to Use</a></div>',
+        unsafe_allow_html=True)
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     st.markdown("""
@@ -2242,27 +2189,13 @@ elif active_tab == "DataIntegrity":
               f'<td>CAMPUS TOTAL</td><td>{total_kwh:,.1f}</td><td>{total_kwh/1000:.2f}</td>'
               f'<td>${total_kwh * ENERGY_RATE:,.0f}</td><td></td></tr>')
     v_tbl += '</tbody></table>'
-    st.markdown(f'<div class="card" style="overflow-x:auto">{v_tbl}</div>', unsafe_allow_html=True)
-
-    _gas_has_data = bool((df_all["gas_therm"] > 0).any())
-    _wat_has_data = bool((df_all["water_gallon"] > 0).any())
-    if _gas_has_data and _wat_has_data:
-        _gw_note = ("Gas and water usage are tracked separately — see the "
-                     "Gas &amp; Water summary below.")
-    elif _gas_has_data:
-        _gw_note = ("Gas usage is tracked separately (see below); water "
-                     "meters currently have no data available.")
-    elif _wat_has_data:
-        _gw_note = ("Water usage is tracked separately (see below); gas "
-                     "meters currently have no data available.")
-    else:
-        _gw_note = "Gas and water meters currently have no data available."
+    st.markdown(f'<div class="card">{v_tbl}</div>', unsafe_allow_html=True)
 
     st.markdown(
         f'<div style="font-size:1.05rem;font-weight:700;color:#374151;margin-top:8px;margin-bottom:4px;">'
         f'Showing most recent week: {week_label(_di_latest, cap_at=_di_cap)}. '
         f'kWh includes both electric meters and thermal energy sensors (heating &amp; cooling loops) '
-        f'converted to kWh. {_gw_note}'
+        f'converted to kWh. Gas and water meters currently have no data available.'
         f'</div>', unsafe_allow_html=True)
 
     # Monthly Data Coverage
