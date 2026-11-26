@@ -42,6 +42,17 @@ def load_weekly() -> pd.DataFrame:
     import urllib.request, email.utils, io
     cols = ["week", "building", "kWh", "thermal_kWh", "gas_therm",
             "water_gallon", "heating_dd", "normalized_kWh"]
+    if os.environ.get("SSU_OFFLINE") == "1":
+        base = os.path.dirname(os.path.abspath(__file__))
+        local = pd.read_csv(os.path.join(base, "weekly_energy.csv"), low_memory=False)
+        metadata_path = os.path.join(base, "reporting_coverage.json")
+        if os.path.exists(metadata_path):
+            import json
+            with open(metadata_path, encoding="utf-8") as metadata_file:
+                metadata = json.load(metadata_file)
+            local.attrs["last_modified"] = pd.Timestamp(metadata["data_end"], tz="UTC")
+            local.attrs["reporting_dates"] = metadata["reporting_dates"]
+        return local
     try:
         url = st.secrets.get("WEEKLY_CSV_URL",
                              "https://faridfarahmand.net/data/weekly_energy.csv")
@@ -81,6 +92,17 @@ def load_weekly() -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
     if last_modified_dt is not None:
         df.attrs["last_modified"] = last_modified_dt
+    if "raw_bytes" in locals():
+        try:
+            import json, hashlib
+            from urllib.parse import urljoin
+            with urllib.request.urlopen(urljoin(url, "tuscany_coverage.json"), timeout=5) as response:
+                metadata = json.load(response)
+            if metadata.get("weekly_sha256") == hashlib.sha256(raw_bytes).hexdigest():
+                df.attrs["reporting_dates"] = metadata.get("reporting_dates", {})
+                df.attrs["reporting_hours"] = metadata.get("reporting_hours", {})
+        except Exception:
+            pass  # Existing feeds without this optional coverage file keep their current behavior.
     return df
 
 st.set_page_config(
@@ -442,6 +464,17 @@ SENSOR_REGISTRY = [
 ]
 
 
+_registered_ids = {row[1] for row in SENSOR_REGISTRY}
+for _pid, (_building, _unit) in POINT_ID_MAP.items():
+    if _pid not in _registered_ids:
+        _utility = ("Electric" if _unit in {"kWh", "Wh"} else
+                    "Thermal" if _unit in THERMAL_UNITS else
+                    "Gas" if _unit == "therm" else
+                    "Water" if _unit == "gallon" else "Volume")
+        SENSOR_REGISTRY.append((_building, _pid, _utility, _unit, "Review",
+                                "Registered incoming submeter; verify utility and meter hierarchy"))
+
+
 # BUILDING SQUARE FOOTAGE (approximate gross sq ft; update when actuals are available)
 BUILDING_SQFT = {
     "Green Music Center":          128_000,
@@ -519,6 +552,9 @@ def compute_sensor_statuses(df_all: pd.DataFrame, recent_weeks: int = 4):
         return total, last_seen
 
     for bld, sid, util, unit, orig_status, orig_notes in SENSOR_REGISTRY:
+        if util == "Volume":
+            out[sid] = ("Review", f"Native {unit} retained in source records; utility classification pending")
+            continue
         # PG&E utility-account meters: preserve identity
         if orig_status == "PGE":
             recent_total, _ = _bld_utility_total(by_bld_recent, bld, util)
@@ -602,7 +638,7 @@ def fmt_cost(v):
 
 def fmt_power(kwh: float, days: float) -> str:
     """Average power in kW or MW."""
-    if days is None or days <= 0:
+    if days is None or not pd.notna(days) or days <= 0:
         return "—"
     kw = kwh / (days * 24.0)
     if kw >= 1000:
@@ -658,6 +694,24 @@ def days_in_period(weeks: list, time_filter: str, df_scope: pd.DataFrame = None)
     n = len(weeks) if weeks else 0
     if n == 0:
         return 0.0
+    if df_scope is not None and not df_scope.empty and df_scope["building"].nunique() == 1:
+        building = df_scope["building"].iloc[0]
+        dates_by_building = df_scope.attrs.get("reporting_dates", {})
+        if building in dates_by_building:
+            dates = pd.Series(pd.to_datetime(dates_by_building[building]))
+            week_starts = dates - pd.to_timedelta(dates.dt.dayofweek, unit="D")
+            if time_filter == "Weekly":
+                keys = week_starts.dt.strftime("%Y-%m-%d")
+            elif time_filter == "Monthly":
+                keys = week_starts.dt.strftime("%Y-%m")
+            else:
+                keys = week_starts.dt.strftime("%Y")
+            selected_dates = dates[keys.isin([str(w) for w in weeks])]
+            reported_hours = df_scope.attrs.get("reporting_hours", {}).get(building)
+            if reported_hours is not None:
+                hours = [reported_hours.get(date.strftime("%Y-%m-%d")) for date in selected_dates]
+                return sum(hours) / 24 if all(value is not None for value in hours) else float("nan")
+            return float(selected_dates.nunique())
     if time_filter == "Weekly":
         return n * 7.0
 
@@ -729,7 +783,9 @@ if not _daily_df.empty and "thermal_kWh" in _daily_df.columns:
         .reset_index()
         .rename(columns={"thermal_kWh": "_thermal_kWh_raw"})
     )
+    _merge_attrs = dict(df_all.attrs)
     df_all = df_all.merge(_th_by_wk_bld, on=["week", "building"], how="left")
+    df_all.attrs.update(_merge_attrs)
     df_all["_thermal_kWh_raw"] = df_all["_thermal_kWh_raw"].fillna(0.0)
     df_all["thermal_kWh"] = df_all[["thermal_kWh", "_thermal_kWh_raw"]].max(axis=1)
     df_all = df_all.drop(columns=["_thermal_kWh_raw"])
@@ -1491,7 +1547,16 @@ if active_tab == "Overview":
         b_cost = b_cur * ENERGY_RATE
         _bld_short = "Wine Spectator LC" if sel_bld == "Wine Spectator Learning Ctr" else sel_bld
 
-        bm1_label = (f"{_bld_short} — {period_label(sorted_sel[0])}"
+        def _building_period_label(w):
+            if time_filter == "Weekly":
+                dates = pd.to_datetime(df_all.attrs.get("reporting_dates", {}).get(sel_bld, []), errors="coerce")
+                start = pd.to_datetime(str(w), errors="coerce")
+                reported = dates[(dates >= start) & (dates < start + pd.Timedelta(days=7))]
+                if len(reported):
+                    return week_label(w, cap_at=reported.max())
+            return period_label(w)
+
+        bm1_label = (f"{_bld_short} — {_building_period_label(sorted_sel[0])}"
                      if len(sorted_sel) == 1
                      else f"{_bld_short} — {len(sorted_sel)} Selected Periods")
         bm2_label = (f"Projected Cost (@ ${ENERGY_RATE:.2f}/kWh)" if _cost_rate_set
@@ -1538,7 +1603,7 @@ if active_tab == "Overview":
             (by_bld["week"].isin(sorted_sel))
         ].sort_values("week").copy())
         if len(bld_trend) >= 1:
-            bld_trend["label"] = bld_trend["week"].apply(period_label)
+            bld_trend["label"] = bld_trend["week"].apply(_building_period_label)
             bld_trend["disp"]  = bld_trend["kWh"] / 1000
             bld_trend["disp"] = bld_trend["disp"].clip(lower=0.0)
             fig_trend = go.Figure(go.Bar(
@@ -2602,7 +2667,7 @@ elif active_tab == "DataIntegrity":
         f'</div></div>', unsafe_allow_html=True)
 
     # Full sensor registry
-    st.markdown('<div class="sec-label">Full Sensor Registry — All 37 Sensors</div>',
+    st.markdown(f'<div class="sec-label">Full Sensor Registry — All {len(SENSOR_REGISTRY)} Sensors</div>',
                 unsafe_allow_html=True)
     st.markdown(
         '<p style="font-size:0.95rem;color:#6b7280;margin-top:-2px;line-height:1.5;">'
